@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Contrôles - Ouest Palettes</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .status-badge { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
+    .status-done { background-color: #10b981; }       /* vert ✅ */
+    .status-pending { background-color: #f59e0b; }   /* jaune 🟡 */
+    .status-new { background-color: #6b7280; }       /* gris ⚪ */
+    .qty-btn { width: 30px; height: 30px; font-size: 18px; font-weight: bold; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900">
+
+  <!-- Écran de connexion -->
+  <div id="loginScreen" class="flex flex-col items-center justify-center h-screen px-6">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md text-center">
+      <img src="https://i.ibb.co/6cRdDfrM/logo-ouest-palettes.png" alt="Ouest Palettes" class="w-40 h-12 mx-auto mb-4" />
+      <p class="text-lg font-semibold text-blue-600 mb-6">Contrôles de Production</p>
+      <input id="email" type="email" placeholder="Email" class="w-full p-3 mb-4 border border-gray-300 rounded-lg" />
+      <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 mb-4 border border-gray-300 rounded-lg" />
+      <button onclick="login()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Se connecter</button>
+      <p id="loginError" class="text-red-500 text-sm mt-2 hidden">Email ou mot de passe incorrect</p>
+    </div>
+  </div>
+
+  <!-- Application Manager -->
+  <div id="managerApp" class="hidden flex-col h-screen">
+    <header class="bg-white shadow-sm p-4">
+      <div class="flex justify-between items-center">
+        <h1 class="text-xl font-bold">📋 Contrôles — <span id="currentDate"></span></h1>
+        <button onclick="logout()" class="text-sm text-red-500">Déconnexion</button>
+      </div>
+    </header>
+
+    <div class="flex-1 p-4 space-y-6 overflow-y-auto">
+      <div class="bg-white p-5 rounded-xl shadow">
+        <h2 class="font-semibold mb-4">Mes Employés</h2>
+        <div id="employesList" class="space-y-3"></div>
+      </div>
+    </div>
+
+    <div id="offlineBar" class="hidden bg-yellow-500 text-white text-center py-2 text-sm">📴 Hors ligne. Les données seront envoyées dès que vous serez en ligne.</div>
+  </div>
+
+  <!-- Application Employé -->
+  <div id="employeApp" class="hidden flex-col h-screen">
+    <header class="bg-white shadow-sm p-4">
+      <div class="flex justify-between items-center">
+        <h1 class="text-xl font-bold">🔔 Notifications</h1>
+        <button onclick="logout()" class="text-sm text-red-500">Déconnexion</button>
+      </div>
+    </header>
+
+    <div class="flex-1 p-4 space-y-6 overflow-y-auto">
+      <div class="bg-white p-5 rounded-xl shadow">
+        <h2 class="font-semibold mb-4">Contrôles en attente</h2>
+        <div id="notificationsList" class="space-y-3"></div>
+        <p id="noNotifications" class="text-gray-500 text-center py-4 hidden">Aucun contrôle en attente</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Fiche Contrôle -->
+  <div id="modalControle" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+    <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 relative">
+      <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">×</button>
+      <h2 class="text-xl font-bold mb-4">📅 <span id="modalDate"></span></h2>
+      <h3 class="text-lg font-semibold mb-4">👤 <span id="modalEmployeNom"></span></h3>
+
+      <div id="produitsList" class="space-y-4 mb-6"></div>
+
+      <div class="flex space-x-2">
+        <button onclick="validerControle(false)" class="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold">✅ Valider sans confirmation</button>
+        <button onclick="validerControle(true)" class="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">🔄 Valider et attendre confirmation</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed bottom-5 left-1/2 bg-black text-white px-4 py-2 rounded-lg text-sm hidden transform -translate-x-1/2 transition-opacity duration-300"></div>
+
+  <script>
+    // ---------- CONFIG ----------
+    const CONFIG = {
+      utilisateurs: [
+        { email: 'thierry', password: '1234', role: 'manager', equipe: 'Atelier Brest' },
+        { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' },
+        { email: 'jean.dupont', password: '1234', role: 'employe', manager: 'thierry' },
+        { email: 'marc.lefebvre', password: '1234', role: 'employe', manager: 'thierry' },
+        { email: 'sophie.martin', password: '1234', role: 'employe', manager: 'johan' }
+      ],
+      // URL du script Google Apps Script (à remplacer par le tien)
+      urlScript: 'https://script.google.com/macros/s/VOTRE_SCRIPT_ID/exec',
+      delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures en ms
+    };
+
+    // ---------- ÉTAT ----------
+    let currentUser = null;
+    let controlesEnCours = JSON.parse(localStorage.getItem('controlesEnCours') || '{}');
+    let notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
+    let timers = JSON.parse(localStorage.getItem('timers') || '{}');
+
+    // ---------- UTILITAIRES ----------
+    function formatDate(date) {
+      return new Intl.DateTimeFormat('fr-FR').format(date);
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3000);
+    }
+
+    function checkOnlineStatus() {
+      const bar = document.getElementById('offlineBar');
+      window.addEventListener('online', () => { bar.classList.add('hidden'); syncOfflineData(); });
+      window.addEventListener('offline', () => { bar.classList.remove('hidden'); });
+      if (!navigator.onLine) bar.classList.remove('hidden');
+    }
+
+    // ---------- AUTH ----------
+    function login() {
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const user = CONFIG.utilisateurs.find(u => u.email === email && u.password === password);
+      if (user) {
+        currentUser = user;
+        document.getElementById('loginScreen').classList.add('hidden');
+        if (user.role === 'manager') {
+          document.getElementById('managerApp').classList.remove('hidden');
+          loadEmployes();
+        } else {
+          document.getElementById('employeApp').classList.remove('hidden');
+          loadNotifications();
+        }
+        document.getElementById('currentDate').textContent = formatDate(new Date());
+        document.getElementById('modalDate').textContent = formatDate(new Date());
+        checkOnlineStatus();
+      } else {
+        document.getElementById('loginError').classList.remove('hidden');
+      }
+    }
+
+    function logout() {
+      currentUser = null;
+      document.getElementById('loginScreen').classList.remove('hidden');
+      document.getElementById('managerApp').classList.add('hidden');
+      document.getElementById('employeApp').classList.add('hidden');
+      document.getElementById('modalControle').classList.add('hidden');
+    }
+
+    // ---------- MANAGER ----------
+    function loadEmployes() {
+      const list = document.getElementById('employesList');
+      list.innerHTML = '';
+
+      const employes = CONFIG.utilisateurs.filter(u => u.role === 'employe' && u.manager === currentUser.email);
+      const today = formatDate(new Date());
+
+      employes.forEach(emp => {
+        let statut = 'new'; // ⚪
+        let label = 'Non contrôlé';
+        if (controlesEnCours[emp.email]?.statut === 'pending') {
+          statut = 'pending'; // 🟡
+          label = 'En attente de validation';
+        } else if (controlesEnCours[emp.email]?.statut === 'done') {
+          statut = 'done'; // ✅
+          label = 'Contrôle validé';
+        }
+
+        const item = document.createElement('div');
+        item.className = 'border p-3 rounded-lg bg-gray-50 flex justify-between items-center';
+        item.innerHTML = `
+          <div>
+            <span class="status-badge status-${statut}"></span>
+            <span class="font-medium">${emp.email.split('.')[0].charAt(0).toUpperCase() + emp.email.split('.')[0].slice(1)}</span>
+          </div>
+          <button onclick="openControle('${emp.email}')" class="bg-blue-600 text-white px-3 py-1 rounded text-sm">
+            ${statut === 'new' ? 'Contrôler' : 'Modifier'}
+          </button>
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    function openControle(employeEmail) {
+      const employe = CONFIG.utilisateurs.find(u => u.email === employeEmail);
+      document.getElementById('modalEmployeNom').textContent = employe.email;
+
+      // Charger les produits depuis localStorage ou initialiser
+      const produits = controlesEnCours[employeEmail]?.produits || [
+        { designation: 'Palette EURO neuve', qté: 0 },
+        { designation: 'Palette réparée H1', qté: 0 },
+        { designation: 'Palette perdue', qté: 0 }
+      ];
+
+      const produitsList = document.getElementById('produitsList');
+      produitsList.innerHTML = '';
+
+      produits.forEach((prod, index) => {
+        const div = document.createElement('div');
+        div.className = 'flex items-center justify-between p-3 bg-gray-100 rounded-lg';
+        div.innerHTML = `
+          <span>${prod.designation}</span>
+          <div class="flex items-center space-x-2">
+            <button class="qty-btn bg-gray-300 rounded" onclick="updateQty('${employeEmail}', ${index}, -1)">-</button>
+            <span id="qty-${employeEmail}-${index}" class="font-bold w-12 text-center">${prod.qté}</span>
+            <button class="qty-btn bg-gray-300 rounded" onclick="updateQty('${employeEmail}', ${index}, 1)">+</button>
+          </div>
+        `;
+        produitsList.appendChild(div);
+      });
+
+      // Sauvegarder dans l'état temporaire
+      controlesEnCours[employeEmail] = controlesEnCours[employeEmail] || {};
+      controlesEnCours[employeEmail].produits = produits;
+
+      document.getElementById('modalControle').classList.remove('hidden');
+    }
+
+    function closeModal() {
+      document.getElementById('modalControle').classList.add('hidden');
+    }
+
+    function updateQty(employeEmail, index, delta) {
+      const produits = controlesEnCours[employeEmail].produits;
+      produits[index].qté = Math.max(0, produits[index].qté + delta);
+      document.getElementById(`qty-${employeEmail}-${index}`).textContent = produits[index].qté;
+      controlesEnCours[employeEmail].produits = produits;
+      localStorage.setItem('controlesEnCours', JSON.stringify(controlesEnCours));
+    }
+
+    function validerControle(attenteConfirmation) {
+      const employeNom = document.getElementById('modalEmployeNom').textContent;
+      const employe = CONFIG.utilisateurs.find(u => u.email.includes(employeNom.toLowerCase()));
+      const produits = controlesEnCours[employe.email].produits;
+
+      if (produits.every(p => p.qté === 0)) {
+        alert('Veuillez saisir au moins une quantité.');
+        return;
+      }
+
+      const controle = {
+        manager: currentUser.email,
+        employe: employe.email,
+        produits: produits,
+        date: new Date().toISOString(),
+        statut: attenteConfirmation ? 'pending' : 'done',
+        reponseEmploye: null,
+        timestampValidation: Date.now()
+      };
+
+      controlesEnCours[employe.email] = controle;
+      localStorage.setItem('controlesEnCours', JSON.stringify(controlesEnCours));
+
+      if (attenteConfirmation) {
+        // Ajouter notification pour l'employé
+        const notif = {
+          id: Date.now().toString(),
+          ...controle
+        };
+        notifications.push(notif);
+        localStorage.setItem('notifications', JSON.stringify(notifications));
+
+        // Programmer auto-validation
+        const timerId = setTimeout(() => {
+          autoValiderControle(notif.id);
+        }, CONFIG.delaiAutoValidation);
+
+        timers[notif.id] = timerId;
+        localStorage.setItem('timers', JSON.stringify(timers));
+      }
+
+      sendToGoogleScript(controle);
+
+      closeModal();
+      loadEmployes();
+      showToast(`✅ Contrôle enregistré pour ${employeNom}`);
+    }
+
+    function autoValiderControle(notifId) {
+      const index = notifications.findIndex(n => n.id === notifId);
+      if (index !== -1) {
+        notifications[index].statut = 'done';
+        notifications[index].reponseEmploye = 'auto';
+        localStorage.setItem('notifications', JSON.stringify(notifications));
+        // Nettoyer le timer
+        delete timers[notifId];
+        localStorage.setItem('timers', JSON.stringify(timers));
+      }
+    }
+
+    // ---------- EMPLOYÉ ----------
+    function loadNotifications() {
+      const list = document.getElementById('notificationsList');
+      const noNotif = document.getElementById('noNotifications');
+      list.innerHTML = '';
+
+      const mesNotifs = notifications.filter(n => n.employe === currentUser.email && n.statut === 'pending');
+
+      if (mesNotifs.length === 0) {
+        noNotif.classList.remove('hidden');
+        return;
+      }
+      noNotif.classList.add('hidden');
+
+      mesNotifs.forEach(notif => {
+        const item = document.createElement('div');
+        item.className = 'border p-4 rounded-lg bg-blue-50';
+        let produitsHtml = '';
+        notif.produits.forEach(p => {
+          if (p.qté > 0) produitsHtml += `<div>${p.designation}: <strong>${p.qté}</strong></div>`;
+        });
+
+        item.innerHTML = `
+          <p class="text-sm text-gray-500">Contrôle du ${formatDate(new Date(notif.date))} par ${notif.manager}</p>
+          ${produitsHtml}
+          <div class="flex space-x-2 mt-4">
+            <button onclick="repondreControle('${notif.id}', 'valide')" class="flex-1 bg-green-600 text-white py-2 rounded text-sm">✅ Je valide</button>
+            <button onclick="repondreControle('${notif.id}', 'recontrole')" class="flex-1 bg-yellow-600 text-white py-2 rounded text-sm">🔄 Demander recontrôle</button>
+          </div>
+        `;
+        list.appendChild(item);
+      });
+    }
+
+    function repondreControle(notifId, reponse) {
+      const index = notifications.findIndex(n => n.id === notifId);
+      if (index !== -1) {
+        notifications[index].statut = 'done';
+        notifications[index].reponseEmploye = reponse;
+        localStorage.setItem('notifications', JSON.stringify(notifications));
+
+        // Annuler le timer d'auto-validation
+        if (timers[notifId]) {
+          clearTimeout(timers[notifId]);
+          delete timers[notifId];
+          localStorage.setItem('timers', JSON.stringify(timers));
+        }
+
+        sendToGoogleScript(notifications[index]);
+        loadNotifications();
+        showToast(`✅ Réponse enregistrée`);
+      }
+    }
+
+    // ---------- ENVOI GOOGLE SCRIPT ----------
+    function sendToGoogleScript(data) {
+      if (!navigator.onLine) {
+        showToast('⚠️ Mode hors ligne — sauvegardé localement');
+        return;
+      }
+
+      fetch(CONFIG.urlScript, {
+        method: 'POST',
+        body: JSON.stringify(data),
+        headers: { 'Content-Type': 'text/plain' }
+      })
+      .then(async (response) => {
+        let result = await response.json();
+        if (result.status !== 'success') throw new Error(result.message);
+      })
+      .catch(err => {
+        console.error('Erreur:', err);
+        showToast('⚠️ Erreur d’envoi — sauvegardé localement');
+      });
+    }
+
+    function syncOfflineData() {
+      // À implémenter si besoin de ré-envoyer les données non envoyées
+    }
+  </script>
+</body>
+</html>
