@@ -22,9 +22,14 @@
     <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md text-center">
       <img src="https://i.ibb.co/6cRdDfrM/logo-ouest-palettes.png" alt="Ouest Palettes" class="w-40 h-12 mx-auto mb-4" />
       <p class="text-lg font-semibold text-blue-600 mb-6">Contrôles de Production</p>
-      <input id="email" type="email" placeholder="Email" class="w-full p-3 mb-4 border border-gray-300 rounded-lg" />
-      <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 mb-4 border border-gray-300 rounded-lg" />
-      <button onclick="login()" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Se connecter</button>
+
+      <!-- ✅ Formulaire avec <form> pour éviter les bugs de mot de passe -->
+      <form onsubmit="event.preventDefault(); login();" class="space-y-4">
+        <input id="email" type="email" placeholder="Email" class="w-full p-3 border border-gray-300 rounded-lg" required />
+        <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 border border-gray-300 rounded-lg" required />
+        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Se connecter</button>
+      </form>
+
       <p id="loginError" class="text-red-500 text-sm mt-2 hidden">Email ou mot de passe incorrect</p>
     </div>
   </div>
@@ -85,7 +90,7 @@
   <div id="toast" class="fixed bottom-5 left-1/2 bg-black text-white px-4 py-2 rounded-lg text-sm hidden transform -translate-x-1/2 transition-opacity duration-300"></div>
 
   <script>
-    document.addEventListener('DOMContentLoaded', function() {
+    document.addEventListener('DOMContentLoaded', function () {
 
       // ---------- CONFIG ----------
       const CONFIG = {
@@ -96,7 +101,7 @@
           { email: 'marc.lefebvre', password: '1234', role: 'employe', manager: 'thierry' },
           { email: 'sophie.martin', password: '1234', role: 'employe', manager: 'johan' }
         ],
-        // URL du script Google Apps Script — ID DE DÉPLOIEMENT INTEGRÉ
+        // ✅ URL du script Google Apps Script — avec ton ID
         urlScript: 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec',
         delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures en ms
       };
@@ -163,17 +168,13 @@
         list.innerHTML = '';
 
         const employes = CONFIG.utilisateurs.filter(u => u.role === 'employe' && u.manager === currentUser.email);
-        const today = formatDate(new Date());
 
         employes.forEach(emp => {
           let statut = 'new'; // ⚪
-          let label = 'Non contrôlé';
           if (controlesEnCours[emp.email]?.statut === 'pending') {
             statut = 'pending'; // 🟡
-            label = 'En attente de validation';
           } else if (controlesEnCours[emp.email]?.statut === 'done') {
             statut = 'done'; // ✅
-            label = 'Contrôle validé';
           }
 
           const item = document.createElement('div');
@@ -195,7 +196,6 @@
         const employe = CONFIG.utilisateurs.find(u => u.email === employeEmail);
         document.getElementById('modalEmployeNom').textContent = employe.email;
 
-        // Charger les produits depuis localStorage ou initialiser
         const produits = controlesEnCours[employe.email]?.produits || [
           { designation: 'Palette EURO neuve', qté: 0 },
           { designation: 'Palette réparée H1', qté: 0 },
@@ -219,7 +219,6 @@
           produitsList.appendChild(div);
         });
 
-        // Sauvegarder dans l'état temporaire
         controlesEnCours[employeEmail] = controlesEnCours[employeEmail] || {};
         controlesEnCours[employeEmail].produits = produits;
 
@@ -262,7 +261,6 @@
         localStorage.setItem('controlesEnCours', JSON.stringify(controlesEnCours));
 
         if (attenteConfirmation) {
-          // Ajouter notification pour l'employé
           const notif = {
             id: Date.now().toString(),
             ...controle
@@ -270,7 +268,6 @@
           notifications.push(notif);
           localStorage.setItem('notifications', JSON.stringify(notifications));
 
-          // Programmer auto-validation
           const timerId = setTimeout(() => {
             autoValiderControle(notif.id);
           }, CONFIG.delaiAutoValidation);
@@ -292,12 +289,8 @@
           notifications[index].statut = 'done';
           notifications[index].reponseEmploye = 'auto';
           localStorage.setItem('notifications', JSON.stringify(notifications));
-          // Nettoyer le timer
-          if (timers[notifId]) {
-            clearTimeout(timers[notifId]);
-            delete timers[notifId];
-            localStorage.setItem('timers', JSON.stringify(timers));
-          }
+          delete timers[notifId];
+          localStorage.setItem('timers', JSON.stringify(timers));
         }
       }
 
@@ -342,7 +335,6 @@
           notifications[index].reponseEmploye = reponse;
           localStorage.setItem('notifications', JSON.stringify(notifications));
 
-          // Annuler le timer d'auto-validation
           if (timers[notifId]) {
             clearTimeout(timers[notifId]);
             delete timers[notifId];
