@@ -26,7 +26,8 @@
         { email: 'thierry', password: '1234', role: 'manager', equipe: 'Atelier Brest' },
         { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' }
       ],
-      // URL du script Google Apps Script (à remplacer par le tien)
+      // URL du script Google Apps Script (à remplacer par la tienne)
+      // Assure-toi que cette URL est exactement celle de ton déploiement et qu'elle se termine par /exec
       urlScript: 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec',
       delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures
     };
@@ -62,24 +63,44 @@
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
 
+      console.log("Tentative de connexion pour:", email);
+      console.log("URL du script utilisée:", CONFIG.urlScript);
+
       // Charger les employés depuis Google Sheet
       fetch(CONFIG.urlScript)
-        .then(res => res.json())
+        .then(response => {
+          console.log("Réponse brute du fetch:", response);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+          return response.json();
+        })
         .then(employesData => {
+          console.log("Données reçues du script:", employesData);
+          
+          // Vérifier s'il y a une erreur dans la réponse
+          if (employesData.error) {
+            throw new Error(employesData.error);
+          }
+
           // Transformer les employés en utilisateurs
           const employes = employesData.map(emp => ({
-            email: emp.Email,
+            email: emp.Email || emp.email || '', // Gérer différentes casses possibles
             password: '1234', // ou gérer via Sheet
             role: 'employe',
-            equipe: emp.Équipe,
-            manager: emp.Équipe === 'Atelier Brest' ? 'thierry' : 'johan'
+            equipe: emp.Équipe || emp.Equipe || emp.equipe || '',
+            manager: (emp.Équipe || emp.Equipe || emp.equipe) === 'Atelier Brest' ? 'thierry' : 'johan'
           }));
 
           // Fusionner avec les managers
           allUsers = [...CONFIG.managers, ...employes];
 
+          console.log("Liste complète des utilisateurs:", allUsers);
+
           // Trouver l'utilisateur
           const user = allUsers.find(u => u.email === email && u.password === password);
+          console.log("Utilisateur trouvé:", user);
+          
           if (user) {
             currentUser = user;
             document.getElementById('loginScreen').classList.add('hidden');
@@ -98,8 +119,8 @@
           }
         })
         .catch(err => {
-          console.error("Erreur de chargement des employés :", err);
-          alert("Impossible de charger les employés depuis le Google Sheet.");
+          console.error("Erreur détaillée de chargement des employés :", err);
+          alert("Impossible de charger les employés depuis le Google Sheet. Vérifie la console pour plus de détails.");
         });
     }
 
@@ -331,8 +352,8 @@
       <p class="text-lg font-semibold text-blue-600 mb-6">Contrôles de Production</p>
 
       <form onsubmit="event.preventDefault(); login();" class="space-y-4">
-        <input id="email" type="text" placeholder="Identifiant" class="w-full p-3 border border-gray-300 rounded-lg" required />
-        <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 border border-gray-300 rounded-lg" required />
+        <input id="email" type="text" placeholder="Identifiant" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="username" />
+        <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="current-password" />
         <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Se connecter</button>
       </form>
 
