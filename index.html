@@ -17,23 +17,23 @@
 </head>
 <body class="bg-gray-50 text-gray-900">
 
-  <!-- ✅ SCRIPT JS AU DÉBUT POUR ÉVITER login is not defined -->
+  <!-- Script JS au début pour éviter login is not defined -->
   <script>
     // ---------- CONFIG ----------
     const CONFIG = {
-      utilisateurs: [
+      // Managers codés en dur (ou à charger depuis Sheet si tu veux)
+      managers: [
         { email: 'thierry', password: '1234', role: 'manager', equipe: 'Atelier Brest' },
-        { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' },
-        { email: 'jean.dupont', password: '1234', role: 'employe', manager: 'thierry' },
-        { email: 'marc.lefebvre', password: '1234', role: 'employe', manager: 'thierry' },
-        { email: 'sophie.martin', password: '1234', role: 'employe', manager: 'johan' }
+        { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' }
       ],
+      // URL du script Google Apps Script (à remplacer par le tien)
       urlScript: 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec',
       delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures
     };
 
     // ---------- ÉTAT ----------
     let currentUser = null;
+    let allUsers = []; // Employés + Managers
     let controlesEnCours = JSON.parse(localStorage.getItem('controlesEnCours') || '{}');
     let notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
     let timers = JSON.parse(localStorage.getItem('timers') || '{}');
@@ -61,23 +61,46 @@
     function login() {
       const email = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      const user = CONFIG.utilisateurs.find(u => u.email === email && u.password === password);
-      if (user) {
-        currentUser = user;
-        document.getElementById('loginScreen').classList.add('hidden');
-        if (user.role === 'manager') {
-          document.getElementById('managerApp').classList.remove('hidden');
-          loadEmployes();
-        } else {
-          document.getElementById('employeApp').classList.remove('hidden');
-          loadNotifications();
-        }
-        document.getElementById('currentDate').textContent = formatDate(new Date());
-        document.getElementById('modalDate').textContent = formatDate(new Date());
-        checkOnlineStatus();
-      } else {
-        document.getElementById('loginError').classList.remove('hidden');
-      }
+
+      // Charger les employés depuis Google Sheet
+      fetch(CONFIG.urlScript)
+        .then(res => res.json())
+        .then(employesData => {
+          // Transformer les employés en utilisateurs
+          const employes = employesData.map(emp => ({
+            email: emp.Email,
+            password: '1234', // ou gérer via Sheet
+            role: 'employe',
+            equipe: emp.Équipe,
+            manager: emp.Équipe === 'Atelier Brest' ? 'thierry' : 'johan'
+          }));
+
+          // Fusionner avec les managers
+          allUsers = [...CONFIG.managers, ...employes];
+
+          // Trouver l'utilisateur
+          const user = allUsers.find(u => u.email === email && u.password === password);
+          if (user) {
+            currentUser = user;
+            document.getElementById('loginScreen').classList.add('hidden');
+            if (user.role === 'manager') {
+              document.getElementById('managerApp').classList.remove('hidden');
+              loadEmployes();
+            } else {
+              document.getElementById('employeApp').classList.remove('hidden');
+              loadNotifications();
+            }
+            document.getElementById('currentDate').textContent = formatDate(new Date());
+            document.getElementById('modalDate').textContent = formatDate(new Date());
+            checkOnlineStatus();
+          } else {
+            document.getElementById('loginError').classList.remove('hidden');
+          }
+        })
+        .catch(err => {
+          console.error("Erreur de chargement des employés :", err);
+          alert("Impossible de charger les employés depuis le Google Sheet.");
+        });
     }
 
     function logout() {
@@ -93,7 +116,7 @@
       const list = document.getElementById('employesList');
       list.innerHTML = '';
 
-      const employes = CONFIG.utilisateurs.filter(u => u.role === 'employe' && u.manager === currentUser.email);
+      const employes = allUsers.filter(u => u.role === 'employe' && u.manager === currentUser.email);
 
       employes.forEach(emp => {
         let statut = 'new'; // ⚪
@@ -119,9 +142,10 @@
     }
 
     function openControle(employeEmail) {
-      const employe = CONFIG.utilisateurs.find(u => u.email === employeEmail);
+      const employe = allUsers.find(u => u.email === employeEmail);
       document.getElementById('modalEmployeNom').textContent = employe.email;
 
+      // Charger les produits depuis localStorage ou initialiser
       const produits = controlesEnCours[employe.email]?.produits || [
         { designation: 'Palette EURO neuve', qté: 0 },
         { designation: 'Palette réparée H1', qté: 0 },
@@ -165,7 +189,7 @@
 
     function validerControle(attenteConfirmation) {
       const employeNom = document.getElementById('modalEmployeNom').textContent;
-      const employe = CONFIG.utilisateurs.find(u => u.email.includes(employeNom.toLowerCase()));
+      const employe = allUsers.find(u => u.email.includes(employeNom.toLowerCase()));
       const produits = controlesEnCours[employe.email].produits;
 
       if (produits.every(p => p.qté === 0)) {
@@ -306,7 +330,6 @@
       <img src="https://i.ibb.co/6cRdDfrM/logo-ouest-palettes.png" alt="Ouest Palettes" class="w-40 h-12 mx-auto mb-4" />
       <p class="text-lg font-semibold text-blue-600 mb-6">Contrôles de Production</p>
 
-      <!-- ✅ Formulaire avec <form> pour éviter les bugs de mot de passe -->
       <form onsubmit="event.preventDefault(); login();" class="space-y-4">
         <input id="email" type="text" placeholder="Identifiant" class="w-full p-3 border border-gray-300 rounded-lg" required />
         <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 border border-gray-300 rounded-lg" required />
