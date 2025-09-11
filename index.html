@@ -27,7 +27,7 @@
           { email: 'thierry', password: '1234', role: 'manager', equipe: 'Atelier Brest' },
           { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' }
         ],
-        // URL du script Google Apps Script - À METTRE À JOUR AVEC LA BONNE URL
+        // URL du script Google Apps Script - LA BONNE URL
         urlScript: 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec',
         delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures
       };
@@ -94,8 +94,8 @@
               email: emp.Email || emp.email || emp.EMAIL || '',
               password: '1234',
               role: 'employe',
-              equipe: emp.Équipe || emp.Equipe || emp.equipe || emp['Équipe'] || '',
-              manager: (emp.Équipe || emp.Equipe || emp.equipe || emp['Équipe']) === 'Atelier Brest' ? 'thierry' : 'johan'
+              equipe: emp.Equipe || emp.equipe || emp['Equipe'] || '',
+              manager: (emp.Equipe || emp.equipe || emp['Equipe']) === 'Atelier Brest' ? 'thierry' : 'johan'
             })) : [];
 
             // Fusionner avec les managers
