@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Contrôles - Ouest Palettes</title>
+  <!-- Note: L'avertissement Tailwind est normal pour cette méthode d'inclusion. -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
@@ -25,9 +26,11 @@
       <img src="https://i.ibb.co/6cRdDfrM/logo-ouest-palettes.png" alt="Ouest Palettes" class="w-40 h-12 mx-auto mb-4" />
       <p class="text-lg font-semibold text-blue-600 mb-6">Contrôles de Production</p>
       
-      <!-- Formulaire de connexion -->
+      <!-- Formulaire de connexion - Conforme aux recommandations HTML pour l'authentification -->
       <form id="loginForm" class="space-y-4">
+        <!-- autocomplete="username" aide les gestionnaires de mots de passe -->
         <input id="email" type="text" placeholder="Identifiant" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="username" />
+        <!-- autocomplete="current-password" aide les gestionnaires de mots de passe -->
         <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="current-password" />
         <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Se connecter</button>
       </form>
@@ -82,7 +85,7 @@
   </div>
 
   <!-- Modal Fiche Contrôle -->
-  <div id="modalControle">
+  <div id="modalControle" style="display: none;"> <!-- Géré par JS -->
     <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 relative">
         <button id="closeModalBtn" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">×</button>
@@ -94,10 +97,13 @@
         </div>
 
         <div class="flex space-x-2">
-          <button id="validerSansConfirmationBtn" class="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold">
+          <!-- Classes et attributs data pour identifier les boutons -->
+          <button class="validerBtn flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold"
+                  data-attente="false">
               ✅ Valider sans confirmation
           </button>
-          <button id="validerAvecConfirmationBtn" class="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">
+          <button class="validerBtn flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold"
+                  data-attente="true">
               🔄 Valider et attendre confirmation
           </button>
         </div>
@@ -108,20 +114,20 @@
   <div id="toast" class="fixed bottom-5 left-1/2 bg-black text-white px-4 py-2 rounded-lg text-sm hidden transform -translate-x-1/2 transition-opacity duration-300"></div>
 
   <script>
-    (() => { // IIFE pour éviter les conflits de scope global
+    // IIFE (Immediately Invoked Function Expression) pour éviter les conflits de scope global
+    (() => { 
       // ---------- CONFIG ----------
       const CONFIG = {
         // Liste des utilisateurs (comme dans Prospects)
         utilisateurs: [
           { email: 'thierry', password: '1234', role: 'manager', equipe: 'Atelier Brest' },
           { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' },
-          // Les employés seront chargés dynamiquement ou codés ici si statique
-          // Pour cet exemple, on les code aussi, mais on pourrait les charger via un appel API
+          // Employés codés statiquement pour cet exemple
           { email: 'jean.dupont', password: '1234', role: 'employe', manager: 'thierry' },
           { email: 'marc.lefebvre', password: '1234', role: 'employe', manager: 'thierry' },
           { email: 'sophie.martin', password: '1234', role: 'employe', manager: 'johan' }
         ],
-        // URL du script Google Apps Script - A METTRE A JOUR !
+        // *** IMPORTANT : Mettez ici l'URL de VOTRE script Google Apps Script ***
         urlScript: 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec',
         delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures en ms
       };
@@ -336,7 +342,11 @@
         }
 
 
-       function openControle(employeEmail) {
+        // --- FONCTIONS DE CONTROLE ---
+
+        // Fonction pour ouvrir le modal de contrôle
+        function openControle(employeEmail) {
+            console.log("Ouverture du contrôle pour:", employeEmail);
             const employe = CONFIG.utilisateurs.find(u => u.email === employeEmail);
             if (!employe) {
                 console.error("Employé non trouvé:", employeEmail);
@@ -347,7 +357,6 @@
             document.getElementById('modalEmployeNom').textContent = employe.email;
 
             // Charger les produits depuis localStorage ou initialiser
-            // On pourrait aussi imaginer les charger depuis le Sheet, mais pour simplifier...
             const produits = controlesEnCours[employe.email]?.produits || [
                 { designation: 'Palette EURO neuve', qté: 0 },
                 { designation: 'Palette réparée H1', qté: 0 },
@@ -382,44 +391,51 @@
             document.getElementById('modalControle').style.display = 'block';
 
             // Ajouter les écouteurs d'événements aux boutons +/- du modal
-            // Il faut les réattacher à chaque ouverture du modal
             document.querySelectorAll('.decreaseQtyBtn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const empEmail = e.target.dataset.employe;
-                    const idx = parseInt(e.target.dataset.index);
-                    updateQty(empEmail, idx, -1);
-                });
+                btn.addEventListener('click', handleQtyBtnClick);
             });
             document.querySelectorAll('.increaseQtyBtn').forEach(btn => {
-                btn.addEventListener('click', (e) => {
-                    const empEmail = e.target.dataset.employe;
-                    const idx = parseInt(e.target.dataset.index);
-                    updateQty(empEmail, idx, 1);
-                });
+                btn.addEventListener('click', handleQtyBtnClick);
+            });
+
+            // Ajouter les écouteurs d'événements aux boutons de validation du modal
+            // *** CORRECTION : Ils sont ajoutés ici, quand le modal est ouvert ***
+            document.querySelectorAll('.validerBtn').forEach(btn => {
+                btn.addEventListener('click', handleValiderBtnClick);
             });
         }
 
+        // Fonction pour fermer le modal
         function closeModal() {
             document.getElementById('modalControle').style.display = 'none';
+            // Note: Pour une application plus complexe, il faudrait nettoyer les écouteurs.
         }
 
-        function updateQty(employeEmail, index, delta) {
-            if (!controlesEnCours[employeEmail] || !controlesEnCours[employeEmail].produits) {
-                console.warn("État des produits non trouvé pour", employeEmail);
+        // Gestionnaire d'événements pour les boutons +/- (placé dans la portée principale)
+        function handleQtyBtnClick(event) {
+             const empEmail = event.target.dataset.employe;
+             const idx = parseInt(event.target.dataset.index);
+             const isIncrease = event.target.classList.contains('increaseQtyBtn');
+             updateQty(empEmail, idx, isIncrease ? 1 : -1);
+        }
+
+        // Gestionnaire d'événements pour les boutons de validation (placé dans la portée principale)
+        async function handleValiderBtnClick(event) {
+             const attenteConfirmation = event.target.dataset.attente === 'true';
+             console.log("Bouton 'Valider' cliqué. Attente confirmation:", attenteConfirmation);
+             await validerControle(attenteConfirmation);
+        }
+
+        // Fonction principale de validation (placée dans la portée principale)
+        async function validerControle(attenteConfirmation) {
+            console.log("Fonction validerControle appelée avec attenteConfirmation:", attenteConfirmation);
+            // Vérifier d'abord si le modal est ouvert et qu'un employé est sélectionné
+            const employeNomElement = document.getElementById('modalEmployeNom');
+            if (!employeNomElement || !employeNomElement.textContent) {
+                showToast("Erreur: Aucun employé sélectionné pour le contrôle.");
                 return;
             }
-            const produits = controlesEnCours[employeEmail].produits;
-            if (index >= 0 && index < produits.length) {
-                produits[index].qté = Math.max(0, produits[index].qté + delta);
-                document.getElementById(`qty-${employeEmail}-${index}`).textContent = produits[index].qté;
-                // Mettre à jour le localStorage
-                localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
-            }
-        }
-
-
-       async function validerControle(attenteConfirmation) {
-            const employeNom = document.getElementById('modalEmployeNom').textContent;
+            const employeNom = employeNomElement.textContent;
             const employe = CONFIG.utilisateurs.find(u => u.email === employeNom);
             if (!employe) {
                 showToast("Erreur: Employé non trouvé.");
@@ -433,7 +449,8 @@
             }
 
             // Vérifier qu'au moins une quantité est saisie
-            if (produits.every(p => p.qté === 0)) {
+            const totalQty = produits.reduce((sum, p) => sum + p.qté, 0);
+            if (totalQty === 0) {
                 alert('Veuillez saisir au moins une quantité.');
                 return;
             }
@@ -448,6 +465,8 @@
                 timestampValidation: Date.now()
             };
 
+            console.log("Données du contrôle à envoyer:", controle);
+
             // Mettre à jour l'état local
             controlesEnCours[employe.email] = controle;
             localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
@@ -461,27 +480,44 @@
                 notifications.push(notif);
                 localStorage.setItem('notifications_palettes', JSON.stringify(notifications));
 
-                // Programmer auto-validation (optionnel, géré côté client ici)
-                // const timerId = setTimeout(() => {
-                //     autoValiderControle(notif.id);
-                // }, CONFIG.delaiAutoValidation);
-                // timers[notif.id] = timerId;
-                // localStorage.setItem('timers_palettes', JSON.stringify(timers));
+                // Vous pouvez gérer le timer d'auto-validation ici si nécessaire
+                // ...
             }
 
             // Envoyer les données au script Google Apps Script
-            const result = await sendToGoogleScript(controle);
+            showToast("Envoi des données en cours...");
+            try {
+                 const result = await sendToGoogleScript(controle);
+                 console.log("Résultat de l'envoi:", result);
 
-            if (result.status === 'success') {
-                closeModal();
-                loadEmployes(); // Recharger la liste pour mettre à jour le statut
-                showToast(`✅ Contrôle enregistré pour ${employeNom}`);
-            } else if (result.status === 'offline') {
-                 closeModal();
-                 loadEmployes();
-                 showToast(`💾 Contrôle sauvegardé localement pour ${employeNom}`);
-            } else {
-                 showToast(`❌ Erreur: ${result.message}`);
+                 if (result.status === 'success') {
+                     closeModal();
+                     loadEmployes(); // Recharger la liste pour mettre à jour le statut
+                     showToast(`✅ Contrôle enregistré pour ${employeNom}`);
+                 } else if (result.status === 'offline') {
+                      closeModal();
+                      loadEmployes();
+                      showToast(`💾 Contrôle sauvegardé localement pour ${employeNom}`);
+                 } else {
+                      showToast(`❌ Erreur: ${result.message}`);
+                 }
+            } catch (error) {
+                 console.error("Erreur attrapée dans validerControle:", error);
+                 showToast(`❌ Erreur: ${error.message}`);
+            }
+        }
+
+        function updateQty(employeEmail, index, delta) {
+            if (!controlesEnCours[employeEmail] || !controlesEnCours[employeEmail].produits) {
+                console.warn("État des produits non trouvé pour", employeEmail);
+                return;
+            }
+            const produits = controlesEnCours[employeEmail].produits;
+            if (index >= 0 && index < produits.length) {
+                produits[index].qté = Math.max(0, produits[index].qté + delta);
+                document.getElementById(`qty-${employeEmail}-${index}`).textContent = produits[index].qté;
+                // Mettre à jour le localStorage
+                localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
             }
         }
 
@@ -580,7 +616,8 @@
 
       // ---------- INITIALISATION ----------
       document.addEventListener('DOMContentLoaded', () => {
-        // Attacher les écouteurs d'événements
+        console.log("DOMContentLoaded - Initialisation des écouteurs principaux");
+        // Attacher les écouteurs d'événements principaux
         document.getElementById('loginForm').addEventListener('submit', (e) => {
           e.preventDefault();
           const email = document.getElementById('email').value.trim();
@@ -596,12 +633,7 @@
         document.getElementById('logoutBtn').addEventListener('click', logout);
         document.getElementById('logoutBtnEmploye').addEventListener('click', logout);
         document.getElementById('closeModalBtn').addEventListener('click', closeModal);
-        document.getElementById('validerSansConfirmationBtn').addEventListener('click', () => validerControle(false));
-        document.getElementById('validerAvecConfirmationBtn').addEventListener('click', () => validerControle(true));
-
-        // Vérifier l'état initial (si déjà connecté, par exemple après refresh)
-        // Cela nécessiterait de stocker le currentUser, mais pour simplifier...
-        // On reste sur l'écran de login par défaut.
+        // *** Les écouteurs pour les boutons de validation dans le modal sont ajoutés dans openControle ***
       });
 
     })(); // Fin de l'IIFE
