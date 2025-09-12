@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Contrôles - Ouest Palettes</title>
+  <!-- Utilisation de Tailwind CSS via CDN (comme dans votre exemple initial) -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
@@ -25,9 +26,11 @@
       <img src="https://i.ibb.co/6cRdDfrM/logo-ouest-palettes.png" alt="Ouest Palettes" class="w-40 h-12 mx-auto mb-4" />
       <p class="text-lg font-semibold text-blue-600 mb-6">Contrôles de Production</p>
       
-      <!-- Formulaire de connexion -->
+      <!-- Formulaire de connexion - Utilise un gestionnaire d'événements JS au lieu de onsubmit -->
       <form id="loginForm" class="space-y-4">
+        <!-- autocomplete="username" aide les gestionnaires de mots de passe -->
         <input id="email" type="text" placeholder="Identifiant" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="username" />
+        <!-- autocomplete="current-password" aide les gestionnaires de mots de passe -->
         <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="current-password" />
         <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Se connecter</button>
       </form>
@@ -127,7 +130,8 @@
           { email: 'thierry', password: '1234', role: 'manager', equipe: 'Atelier Brest' },
           { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' }
         ],
-        // *** IMPORTANT : Mettez ici l'URL de VOTRE script Google Apps Script ***
+        // *** IMPORTANT : Mettez ICI l'URL de VOTRE script Google Apps Script que vous avez copiée ***
+        // Exemple: urlScript: 'https://script.google.com/macros/s/AKfycbzXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/exec',
         urlScript: 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec',
         delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures en ms
       };
@@ -165,7 +169,7 @@
         const updateBar = () => {
             if (navigator.onLine) {
                 bar?.classList.add('hidden');
-                syncOfflineData(); // Tenter de synchroniser si on revient en ligne
+                // syncOfflineData(); // Optionnel: tenter de synchroniser si on revient en ligne
             } else {
                 bar?.classList.remove('hidden');
             }
@@ -191,7 +195,7 @@
                 const response = await fetch(CONFIG.urlScript, {
                     method: 'POST',
                     body: JSON.stringify(data),
-                    headers: { 'Content-Type': 'application/json' } // <-- Changé pour application/json
+                    headers: { 'Content-Type': 'application/json' } // <-- Important: application/json
                 });
 
                 if (!response.ok) {
@@ -221,60 +225,34 @@
             }
         }
 
-        async function syncOfflineData() {
-            if (!navigator.onLine) return;
-
-            const offlineQueue = JSON.parse(localStorage.getItem('offlineQueue_palettes') || '[]');
-            if (offlineQueue.length === 0) return;
-
-            console.log(`Tentative de synchronisation de ${offlineQueue.length} éléments hors ligne...`);
-            const remainingItems = [];
-            for (const item of offlineQueue) {
-                try {
-                    // Supprime les propriétés ajoutées localement avant l'envoi
-                    const { timestamp, error, ...dataToSend } = item;
-                    const result = await sendToGoogleScript(dataToSend);
-                    if (result.status !== 'success') {
-                        // Si l'envoi échoue à nouveau, le garder dans la file
-                        remainingItems.push(item);
-                    } else {
-                        console.log("Élément synchronisé:", item);
-                    }
-                } catch (e) {
-                    console.error("Échec de synchronisation d'un élément:", item, e);
-                    // Garder l'élément en cas d'erreur persistante
-                    remainingItems.push(item);
-                }
-            }
-            localStorage.setItem('offlineQueue_palettes', JSON.stringify(remainingItems));
-            if (remainingItems.length === 0) {
-                 showToast('✅ Données hors ligne synchronisées');
-            } else {
-                 showToast(`⚠️ ${remainingItems.length} éléments non synchronisés`);
-            }
-        }
-
         // ---------- CHARGEMENT DES DONNÉES ----------
         async function loadEmployesFromSheet() {
             showLoading(true);
             try {
                 console.log("Chargement des employés depuis le Sheet via:", CONFIG.urlScript);
-                const response = await fetch(CONFIG.urlScript);
+                const response = await fetch(CONFIG.urlScript); // Appel GET
                 if (!response.ok) {
-                    throw new Error(`Erreur HTTP ${response.status}`);
+                    const errorText = await response.text();
+                    console.error("Erreur HTTP lors du chargement des employés:", response.status, errorText);
+                    throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
                 }
                 const employesData = await response.json();
                 console.log("Employés chargés:", employesData);
                 
+                // Vérifier si la réponse contient une erreur du script
+                if (employesData && employesData.status === 'error') {
+                     throw new Error(employesData.message || "Erreur renvoyée par le script Google Apps");
+                }
+                
                 // Transformer les employés en objets utilisateurs
-                const employes = employesData.map(emp => ({
-                    // Adapter les clés aux noms de colonnes de votre Sheet
+                // S'assurer que les clés correspondent aux noms de colonnes de votre Sheet
+                const employes = Array.isArray(employesData) ? employesData.map(emp => ({
                     email: emp.Email || emp.email || emp.EMAIL || '',
                     password: '1234', // Mot de passe par défaut, ou géré autrement
                     role: 'employe',
-                    equipe: emp.Equipe || emp.equipe || emp['Equipe'] || '',
+                    equipe: emp.Equipe || emp.equipe || emp['Equipe'] || '', // Gérer les différences de casse/nom
                     manager: (emp.Equipe || emp.equipe || emp['Equipe']) === 'Atelier Brest' ? 'thierry' : 'johan'
-                }));
+                })) : [];
                 
                 // Fusionner avec les managers
                 allUsers = [...CONFIG.managers, ...employes];
@@ -285,9 +263,10 @@
                 
             } catch (error) {
                 console.error("Erreur lors du chargement des employés:", error);
-                showToast("❌ Erreur de chargement des employés");
+                showToast("❌ Erreur de chargement des employés: " + error.message);
                 // En cas d'erreur, on peut charger une liste locale ou afficher un message
-                allUsers = CONFIG.managers; // Fallback sur les managers seulement
+                // Ici, on reste sur les managers seulement comme fallback
+                allUsers = [...CONFIG.managers]; 
                 loadEmployes();
             } finally {
                 showLoading(false);
@@ -297,9 +276,6 @@
 
       // ---------- AUTHENTIFICATION ----------
       async function login(email, password) {
-        // Charger les employés depuis le Sheet à la connexion
-        // await loadEmployesFromSheet(); // Déplacé dans la gestion du succès de login
-        
         // Trouver l'utilisateur dans la liste (allUsers sera remplie après chargement)
         const user = allUsers.find(u => u.email === email && u.password === password);
         if (user) {
@@ -307,7 +283,7 @@
           document.getElementById('loginScreen').style.display = 'none';
           if (user.role === 'manager') {
             document.getElementById('managerApp').style.display = 'flex';
-            // Charger les employés depuis le Sheet ici
+            // Charger les employés depuis le Sheet ici, après une connexion manager réussie
             await loadEmployesFromSheet();
           } else {
             document.getElementById('employeApp').style.display = 'flex';
@@ -316,7 +292,7 @@
           document.getElementById('currentDate').textContent = formatDate(new Date());
           document.getElementById('modalDate').textContent = formatDate(new Date());
           checkOnlineStatus();
-          syncOfflineData(); // Tenter de sync au login
+          // syncOfflineData(); // Optionnel: tenter de sync au login
           return true;
         } else {
           return false;
@@ -367,12 +343,12 @@
 
                 const item = document.createElement('div');
                 item.className = 'border p-3 rounded-lg bg-gray-50 flex justify-between items-center';
-                // Extraire le prénom de l'email pour l'affichage
-                const prenom = emp.email.split('.')[0].charAt(0).toUpperCase() + emp.email.split('.')[0].slice(1);
+                // Extraire le prénom/nom de l'email ou d'autres champs si disponibles
+                const displayName = emp.email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
                 item.innerHTML = `
                     <div>
                         <span class="status-badge status-${statut}"></span>
-                        <span class="font-medium">${prenom}</span>
+                        <span class="font-medium">${displayName}</span>
                     </div>
                     <button class="openControleBtn bg-blue-600 text-white px-3 py-1 rounded text-sm"
                             data-employe-email="${emp.email}">
@@ -657,13 +633,16 @@
         console.log("DOMContentLoaded - Initialisation des écouteurs principaux");
         // Attacher les écouteurs d'événements principaux
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
-          e.preventDefault();
+          e.preventDefault(); // Empêche le rechargement de la page
           const email = document.getElementById('email').value.trim();
           const password = document.getElementById('password').value;
+          console.log("Tentative de login pour:", email);
           const success = await login(email, password); // Attendre la fin du login/chargement
           if (!success) {
+            console.log("Login échoué pour:", email);
             document.getElementById('loginError').classList.remove('hidden');
           } else {
+            console.log("Login réussi pour:", email);
             document.getElementById('loginError').classList.add('hidden');
           }
         });
@@ -671,6 +650,7 @@
         document.getElementById('logoutBtn').addEventListener('click', logout);
         document.getElementById('logoutBtnEmploye').addEventListener('click', logout);
         document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+        // Les écouteurs pour les boutons dans le modal sont ajoutés dynamiquement dans openControle
       });
 
     })(); // Fin de l'IIFE
