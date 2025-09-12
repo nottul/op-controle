@@ -192,15 +192,27 @@
         }
       }
 
+      // === FONCTION LOGIN CORRIGEE ===
       async function login(email, password) {
         console.log("Tentative de login pour:", email);
-        const user = allUsers.find(u => u.email === email && u.password === password);
+        // 1. Chercher d'abord parmi les managers codés en dur
+        let user = CONFIG.managers.find(u => u.email === email && u.password === password);
+        let isManager = true;
+        
+        // 2. Si pas trouvé et si allUsers est chargé, chercher parmi les employés
+        // (Cela peut arriver si un manager recharge la page sans se déconnecter)
+        if (!user && allUsers.length > 0) {
+             user = allUsers.find(u => u.email === email && u.password === password);
+             isManager = user && user.role === 'manager';
+        }
+        
         if (user) {
           currentUser = user;
           document.getElementById('loginScreen').style.display = 'none';
           if (user.role === 'manager') {
             document.getElementById('managerApp').style.display = 'flex';
             document.getElementById('currentDate').textContent = formatDate(new Date());
+            // Charger les employés depuis le Sheet
             await loadEmployesFromSheet();
           } else {
             document.getElementById('employeApp').style.display = 'flex';
@@ -208,11 +220,14 @@
           }
           document.getElementById('modalDate').textContent = formatDate(new Date());
           checkOnlineStatus();
+          console.log("Login réussi pour:", email);
           return true;
         } else {
+          console.log("Login échoué pour:", email);
           return false;
         }
       }
+      // === FIN FONCTION LOGIN CORRIGEE ===
 
       function logout() {
         console.log("Déconnexion de:", currentUser?.email);
