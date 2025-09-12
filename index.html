@@ -108,8 +108,6 @@
 
   <script>
     (() => {
-      console.log("=== Initialisation de l'application ===");
-      
       // ---------- CONFIG ----------
       const CONFIG = {
         // Liste des managers codés en dur
@@ -117,8 +115,8 @@
           { email: 'thierry', password: '1234', role: 'manager', equipe: 'Atelier Brest' },
           { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' }
         ],
-        // URL du script Google Apps Script
-        urlScript: 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec',
+        // *** URL DU SCRIPT GOOGLE APPS SCRIPT - MISE À JOUR ***
+        urlScript: 'https://script.google.com/macros/s/AKfycbw3q9NpwmgJ0IsJGWn9XIy6_nQsMyTa1fPOU5q4pwUHTKOe5S7CxXdbG9kBHV2lFRyf/exec',
         delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures en ms
       };
 
@@ -143,7 +141,11 @@
 
       function showLoading(show) {
           const spinner = document.getElementById('loadingSpinner');
-          spinner.style.display = show ? 'flex' : 'none';
+          if (show) {
+              spinner.style.display = 'flex';
+          } else {
+              spinner.style.display = 'none';
+          }
       }
 
       function checkOnlineStatus() {
@@ -151,7 +153,7 @@
         const updateBar = () => {
             if (navigator.onLine) {
                 bar?.classList.add('hidden');
-                // syncOfflineData(); // Tenter de synchroniser si on revient en ligne
+                syncOfflineData(); // Tenter de synchroniser si on revient en ligne
             } else {
                 bar?.classList.remove('hidden');
             }
@@ -177,7 +179,7 @@
                 const response = await fetch(CONFIG.urlScript, {
                     method: 'POST',
                     body: JSON.stringify(data),
-                    headers: { 'Content-Type': 'text/plain' } // Changé de application/json à text/plain pour compatibilité GAS
+                    headers: { 'Content-Type': 'application/json' } // <-- Important: application/json
                 });
 
                 if (!response.ok) {
@@ -192,15 +194,15 @@
                 try {
                     result = JSON.parse(responseText);
                 } catch (e) {
-                    // Si le parsing JSON échoue, on essaie de récupérer le texte brut
-                    try {
-                      result = JSON.parse(responseText);
-                    } catch (e2) {
-                      throw new Error(`Réponse invalide du serveur: ${responseText}`);
-                    }
+                    console.error("Impossible de parser la réponse JSON:", responseText);
+                    throw new Error("Réponse invalide du serveur: " + responseText);
                 }
-                
-                if (result.status !== 'success') throw new Error(result.message || 'Erreur inconnue du serveur');
+
+                if (result.status !== 'success') {
+                    throw new Error(result.message || "Erreur inconnue du script Google Apps");
+                }
+
+                console.log("Données envoyées avec succès:", result);
                 return result;
 
             } catch (error) {
@@ -250,37 +252,26 @@
 
       // ---------- AUTHENTIFICATION ----------
       async function login(email, password) {
-        console.log("Tentative de login pour:", email);
-        
-        // 1. Chercher d'abord parmi les managers codés en dur
-        let user = CONFIG.managers.find(u => u.email === email && u.password === password);
-        
-        // 2. Si pas trouvé et si allUsers est chargé, chercher parmi les employés
-        if (!user && allUsers.length > 0) {
-             user = allUsers.find(u => u.email === email && u.password === password);
-        }
-        
+        // Charger les employés depuis Google Sheet
+        await loadEmployesFromSheet();
+
+        const user = allUsers.find(u => u.email === email && u.password === password);
         if (user) {
           currentUser = user;
           document.getElementById('loginScreen').style.display = 'none';
           if (user.role === 'manager') {
             document.getElementById('managerApp').style.display = 'flex';
-            document.getElementById('currentDate').textContent = formatDate(new Date());
-            document.getElementById('modalDate').textContent = formatDate(new Date());
-            // Charger les employés depuis le Sheet
-            await loadEmployesFromSheet();
+            loadEmployes();
           } else {
             document.getElementById('employeApp').style.display = 'flex';
-            document.getElementById('currentDate').textContent = formatDate(new Date());
-            document.getElementById('modalDate').textContent = formatDate(new Date());
             loadNotifications();
           }
+          document.getElementById('currentDate').textContent = formatDate(new Date());
+          document.getElementById('modalDate').textContent = formatDate(new Date());
           checkOnlineStatus();
           syncOfflineData(); // Tenter de sync au login
-          console.log("Login réussi pour:", email);
           return true;
         } else {
-          console.log("Login échoué pour:", email);
           return false;
         }
       }
@@ -300,57 +291,34 @@
         document.getElementById('employesList').innerHTML = '';
       }
 
-       // ---------- CHARGEMENT DES EMPLOYÉS ----------
+       // ---------- CHARGEMENT DES DONNÉES ----------
        async function loadEmployesFromSheet() {
             showLoading(true);
             try {
-                console.log("Chargement des employés via:", CONFIG.urlScript);
+                console.log("Chargement des employés depuis le Sheet via:", CONFIG.urlScript);
                 const response = await fetch(CONFIG.urlScript);
                 if (!response.ok) {
-                   const errorText = await response.text();
-                   console.error("Erreur HTTP lors du chargement des employés:", response.status, errorText);
-                   throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
+                    throw new Error(`Erreur HTTP ${response.status}`);
                 }
                 const employesData = await response.json();
-                console.log("Employés reçus du script:", employesData);
-
-                // Vérifier s'il y a une erreur dans la réponse
-                if (employesData && employesData.status === 'error') {
-                    throw new Error(employesData.message || "Erreur renvoyée par le script Google Apps");
-                }
-
+                console.log("Employés chargés:", employesData);
+                
                 // Transformer les employés en utilisateurs
-                const employes = Array.isArray(employesData) ? employesData.map(emp => {
-                    // Déterminer le manager en fonction de l'équipe
-                    let managerEmail = 'johan'; // Par défaut
-                    if ((emp.Equipe || emp.equipe || emp['Equipe'] || '').trim() === 'Atelier Brest') {
-                        managerEmail = 'thierry';
-                    }
-                    
-                    return {
-                        email: emp.Email || emp.email || emp.EMAIL || '',
-                        password: '1234', // Mot de passe par défaut
-                        role: 'employe',
-                        equipe: emp.Equipe || emp.equipe || emp['Equipe'] || '',
-                        manager: managerEmail,
-                        nom: emp.Nom || emp.nom || emp.NOM || '',
-                        prenom: emp.Prénom || emp.prénom || emp.PRENOM || ''
-                    };
-                }) : [];
+                const employes = Array.isArray(employesData) ? employesData.map(emp => ({
+                    email: emp.Email || emp.email || emp.EMAIL || '',
+                    password: '1234', // ou gérer via Sheet si tu veux
+                    role: 'employe',
+                    equipe: emp.Equipe || emp.equipe || emp['Equipe'] || '',
+                    manager: (emp.Equipe || emp.equipe || emp['Equipe']) === 'Atelier Brest' ? 'thierry' : 'johan'
+                })) : [];
 
                 // Fusionner avec les managers
                 allUsers = [...CONFIG.managers, ...employes];
                 console.log("Liste complète des utilisateurs:", allUsers);
 
-                // Mettre à jour l'affichage
-                loadEmployes();
-                
             } catch (error) {
-                console.error("Erreur détaillée de chargement des employés :", error);
-                showToast("❌ Erreur de chargement des employés : " + error.message);
-                // En cas d'erreur, on reste sur les managers seulement
-                allUsers = [...CONFIG.managers];
-                loadEmployes();
+                console.error("Erreur de chargement des employés :", error);
+                showToast("Impossible de charger les employés depuis le Google Sheet.");
             } finally {
                 showLoading(false);
             }
@@ -359,34 +327,13 @@
 
       // ---------- GESTION DES EMPLOYÉS (Manager) ----------
        function loadEmployes() {
-            console.log("--- Début de loadEmployes ---");
-            console.log("Utilisateur courant (manager):", currentUser?.email);
-            console.log("Liste complète des utilisateurs (allUsers):", allUsers);
-            
             const list = document.getElementById('employesList');
-            list.innerHTML = ''; // Vider la liste
+            list.innerHTML = '';
 
-            // Filtrer les employés appartenant à l'équipe du manager courant
-            console.log("Filtrage des employés pour le manager:", currentUser.email);
-            const employesDuManager = allUsers.filter(u => {
-                console.log(`Comparaison: u.role='${u.role}', u.manager='${u.manager}', currentUser.email='${currentUser.email}'`);
-                const result = u.role === 'employe' && u.manager === currentUser.email;
-                console.log(`Résultat pour ${u.email}:`, result);
-                return result;
-            });
+            const employes = allUsers.filter(u => u.role === 'employe' && u.manager === currentUser.email);
 
-            console.log("Employés du manager trouvés:", employesDuManager);
-
-            if (employesDuManager.length === 0) {
-                list.innerHTML = '<p class="text-gray-500">Aucun employé trouvé.</p>';
-                console.log("Aucun employé trouvé pour ce manager.");
-                return;
-            }
-
-            employesDuManager.forEach(emp => {
-                console.log("Traitement de l'employé:", emp);
-                // Déterminer le statut du contrôle pour cet employé
-                let statut = 'new'; // ⚪ Par défaut
+            employes.forEach(emp => {
+                let statut = 'new'; // ⚪
                 if (controlesEnCours[emp.email]?.statut === 'pending') {
                     statut = 'pending'; // 🟡
                 } else if (controlesEnCours[emp.email]?.statut === 'done') {
@@ -395,54 +342,23 @@
 
                 const item = document.createElement('div');
                 item.className = 'border p-3 rounded-lg bg-gray-50 flex justify-between items-center';
-                // Construire le nom à afficher
-                let displayName = emp.email;
-                if (emp.prenom || emp.nom) {
-                    displayName = `${emp.prenom || ''} ${emp.nom || ''}`.trim() || emp.email;
-                } else {
-                    // Extraire le prénom de l'email si pas de prénom/nom
-                    displayName = emp.email.split('@')[0].split('.').map(p => p.charAt(0).toUpperCase() + p.slice(1)).join(' ');
-                }
-                console.log("Nom affiché pour", emp.email, ":", displayName);
-                
                 item.innerHTML = `
                     <div>
                         <span class="status-badge status-${statut}"></span>
-                        <span class="font-medium">${displayName}</span>
+                        <span class="font-medium">${emp.email.split('.')[0].charAt(0).toUpperCase() + emp.email.split('.')[0].slice(1)}</span>
                     </div>
-                    <button class="openControleBtn bg-blue-600 text-white px-3 py-1 rounded text-sm"
-                            data-employe-email="${emp.email}">
+                    <button onclick="openControle('${emp.email}')" class="bg-blue-600 text-white px-3 py-1 rounded text-sm">
                         ${statut === 'new' ? 'Contrôler' : 'Modifier'}
                     </button>
                 `;
                 list.appendChild(item);
             });
-
-            // Ajouter les écouteurs d'événements aux boutons
-            document.querySelectorAll('.openControleBtn').forEach(button => {
-                button.addEventListener('click', (event) => {
-                    const employeEmail = event.target.dataset.employeEmail;
-                    console.log("Bouton 'Contrôler' cliqué pour:", employeEmail);
-                    openControle(employeEmail);
-                });
-            });
-            
-            console.log("--- Fin de loadEmployes ---");
         }
 
-
-       function openControle(employeEmail) {
-            console.log("Ouverture du contrôle pour:", employeEmail);
+        function openControle(employeEmail) {
             const employe = allUsers.find(u => u.email === employeEmail);
-            if (!employe) {
-                console.error("Employé non trouvé:", employeEmail);
-                showToast("Erreur: Employé non trouvé.");
-                return;
-            }
-
             document.getElementById('modalEmployeNom').textContent = employe.email;
 
-            // Charger les produits depuis localStorage ou initialiser
             const produits = controlesEnCours[employe.email]?.produits || [
                 { designation: 'Palette EURO neuve', qté: 0 },
                 { designation: 'Palette réparée H1', qté: 0 },
@@ -469,11 +385,7 @@
             controlesEnCours[employeEmail] = controlesEnCours[employeEmail] || {};
             controlesEnCours[employeEmail].produits = produits;
 
-            document.getElementById('modalControle').style.display = 'block';
-        }
-
-        function closeModal() {
-            document.getElementById('modalControle').style.display = 'none';
+            document.getElementById('modalControle').classList.remove('hidden');
         }
 
         function updateQty(employeEmail, index, delta) {
@@ -481,10 +393,10 @@
             produits[index].qté = Math.max(0, produits[index].qté + delta);
             document.getElementById(`qty-${employeEmail}-${index}`).textContent = produits[index].qté;
             controlesEnCours[employeEmail].produits = produits;
-            localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
+            localStorage.setItem('controlesEnCours', JSON.stringify(controlesEnCours));
         }
 
-        async function validerControle(attenteConfirmation) {
+        function validerControle(attenteConfirmation) {
             const employeNom = document.getElementById('modalEmployeNom').textContent;
             const employe = allUsers.find(u => u.email.includes(employeNom.toLowerCase()));
             const produits = controlesEnCours[employe.email].produits;
@@ -505,7 +417,7 @@
             };
 
             controlesEnCours[employe.email] = controle;
-            localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
+            localStorage.setItem('controlesEnCours', JSON.stringify(controlesEnCours));
 
             if (attenteConfirmation) {
                 const notif = {
@@ -513,7 +425,7 @@
                     ...controle
                 };
                 notifications.push(notif);
-                localStorage.setItem('notifications_palettes', JSON.stringify(notifications));
+                localStorage.setItem('notifications', JSON.stringify(notifications));
 
                 const timerId = setTimeout(() => {
                     autoValiderControle(notif.id);
@@ -539,6 +451,10 @@
                 delete timers[notifId];
                 localStorage.setItem('timers', JSON.stringify(timers));
             }
+        }
+
+        function closeModal() {
+            document.getElementById('modalControle').classList.add('hidden');
         }
 
       // ---------- EMPLOYÉ ----------
@@ -595,15 +511,12 @@
         }
 
       // ---------- INITIALISATION ----------
-      document.addEventListener('DOMContentLoaded', () => {
-        console.log("=== DOMContentLoaded ===");
-        
+      document.addEventListener('DOMContentLoaded', function () {
         // Attacher les écouteurs d'événements
-        document.getElementById('loginForm').addEventListener('submit', async (e) => {
+        document.getElementById('loginForm').addEventListener('submit', async function (e) {
           e.preventDefault();
           const email = document.getElementById('email').value.trim();
           const password = document.getElementById('password').value;
-          console.log("Formulaire de login soumis:", email);
           const success = await login(email, password);
           if (!success) {
             document.getElementById('loginError').classList.remove('hidden');
@@ -615,15 +528,11 @@
         document.getElementById('logoutBtn').addEventListener('click', logout);
         document.getElementById('logoutBtnEmploye').addEventListener('click', logout);
         document.getElementById('closeModalBtn').addEventListener('click', closeModal);
-        
-        // Attacher les écouteurs pour les boutons de validation dans le modal
-        document.getElementById('validerSansConfirmationBtn').addEventListener('click', () => validerControle(false));
-        document.getElementById('validerAvecConfirmationBtn').addEventListener('click', () => validerControle(true));
-        
+        document.getElementById('validerSansConfirmationBtn').addEventListener('click', function() { validerControle(false); });
+        document.getElementById('validerAvecConfirmationBtn').addEventListener('click', function() { validerControle(true); });
       });
-      
-      console.log("=== Fin de l'IIFE ===");
-    })(); // Fin de l'IIFE
+
+    })();
   </script>
 </body>
 </html>
