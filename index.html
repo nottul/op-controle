@@ -4,7 +4,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Contrôles - Ouest Palettes</title>
-  <!-- Note: L'avertissement Tailwind est normal pour cette méthode d'inclusion. -->
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
@@ -15,7 +14,7 @@
     .status-new { background-color: #6b7280; }       /* gris ⚪ */
     .qty-btn { width: 30px; height: 30px; font-size: 18px; font-weight: bold; }
     /* Cache les sections par défaut */
-    #managerApp, #employeApp, #modalControle { display: none; }
+    #managerApp, #employeApp, #modalControle, #loadingSpinner { display: none; }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -26,17 +25,23 @@
       <img src="https://i.ibb.co/6cRdDfrM/logo-ouest-palettes.png" alt="Ouest Palettes" class="w-40 h-12 mx-auto mb-4" />
       <p class="text-lg font-semibold text-blue-600 mb-6">Contrôles de Production</p>
       
-      <!-- Formulaire de connexion - Conforme aux recommandations HTML pour l'authentification -->
+      <!-- Formulaire de connexion -->
       <form id="loginForm" class="space-y-4">
-        <!-- autocomplete="username" aide les gestionnaires de mots de passe -->
         <input id="email" type="text" placeholder="Identifiant" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="username" />
-        <!-- autocomplete="current-password" aide les gestionnaires de mots de passe -->
         <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="current-password" />
         <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Se connecter</button>
       </form>
 
       <p id="loginError" class="text-red-500 text-sm mt-2 hidden">Identifiant ou mot de passe incorrect</p>
     </div>
+  </div>
+
+  <!-- Indicateur de chargement -->
+  <div id="loadingSpinner" class="fixed inset-0 bg-black bg-opacity-30 flex items-center justify-center z-50">
+     <div class="bg-white p-6 rounded-full shadow-lg">
+        <div class="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        <p class="mt-2 text-center">Chargement...</p>
+     </div>
   </div>
 
   <!-- Application Manager -->
@@ -85,7 +90,7 @@
   </div>
 
   <!-- Modal Fiche Contrôle -->
-  <div id="modalControle" style="display: none;"> <!-- Géré par JS -->
+  <div id="modalControle" style="display: none;">
     <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
       <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 relative">
         <button id="closeModalBtn" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">×</button>
@@ -97,7 +102,6 @@
         </div>
 
         <div class="flex space-x-2">
-          <!-- Classes et attributs data pour identifier les boutons -->
           <button class="validerBtn flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold"
                   data-attente="false">
               ✅ Valider sans confirmation
@@ -118,14 +122,10 @@
     (() => { 
       // ---------- CONFIG ----------
       const CONFIG = {
-        // Liste des utilisateurs (comme dans Prospects)
-        utilisateurs: [
+        // Liste des managers codés en dur (ou pourrait être chargée dynamiquement aussi)
+        managers: [
           { email: 'thierry', password: '1234', role: 'manager', equipe: 'Atelier Brest' },
-          { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' },
-          // Employés codés statiquement pour cet exemple
-          { email: 'jean.dupont', password: '1234', role: 'employe', manager: 'thierry' },
-          { email: 'marc.lefebvre', password: '1234', role: 'employe', manager: 'thierry' },
-          { email: 'sophie.martin', password: '1234', role: 'employe', manager: 'johan' }
+          { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' }
         ],
         // *** IMPORTANT : Mettez ici l'URL de VOTRE script Google Apps Script ***
         urlScript: 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec',
@@ -134,6 +134,7 @@
 
       // ---------- ÉTAT de l'Application ----------
       let currentUser = null;
+      let allUsers = []; // Sera rempli avec les managers + employés du Sheet
       let controlesEnCours = JSON.parse(localStorage.getItem('controlesEnCours_palettes') || '{}');
       let notifications = JSON.parse(localStorage.getItem('notifications_palettes') || '[]');
       let timers = JSON.parse(localStorage.getItem('timers_palettes') || '{}');
@@ -148,6 +149,15 @@
         toast.textContent = msg;
         toast.classList.remove('hidden');
         setTimeout(() => toast.classList.add('hidden'), 3000);
+      }
+
+      function showLoading(show) {
+          const spinner = document.getElementById('loadingSpinner');
+          if (show) {
+              spinner.style.display = 'flex';
+          } else {
+              spinner.style.display = 'none';
+          }
       }
 
       function checkOnlineStatus() {
@@ -180,9 +190,8 @@
                 console.log("Envoi des données au script GAS:", data);
                 const response = await fetch(CONFIG.urlScript, {
                     method: 'POST',
-                    // Crucial : comme dans Prospects
                     body: JSON.stringify(data),
-                    headers: { 'Content-Type': 'text/plain' } // <-- Clé: text/plain
+                    headers: { 'Content-Type': 'application/json' } // <-- Changé pour application/json
                 });
 
                 if (!response.ok) {
@@ -191,15 +200,8 @@
                    throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
                 }
 
-                const responseText = await response.text();
-                console.log("Réponse brute du script GAS:", responseText);
-                let result;
-                try {
-                    result = JSON.parse(responseText);
-                } catch (e) {
-                    console.error("Impossible de parser la réponse JSON:", responseText);
-                    throw new Error("Réponse invalide du serveur: " + responseText);
-                }
+                const result = await response.json();
+                console.log("Réponse du script GAS:", result);
 
                 if (result.status !== 'success') {
                     throw new Error(result.message || "Erreur inconnue du script Google Apps");
@@ -252,18 +254,63 @@
             }
         }
 
+        // ---------- CHARGEMENT DES DONNÉES ----------
+        async function loadEmployesFromSheet() {
+            showLoading(true);
+            try {
+                console.log("Chargement des employés depuis le Sheet via:", CONFIG.urlScript);
+                const response = await fetch(CONFIG.urlScript);
+                if (!response.ok) {
+                    throw new Error(`Erreur HTTP ${response.status}`);
+                }
+                const employesData = await response.json();
+                console.log("Employés chargés:", employesData);
+                
+                // Transformer les employés en objets utilisateurs
+                const employes = employesData.map(emp => ({
+                    // Adapter les clés aux noms de colonnes de votre Sheet
+                    email: emp.Email || emp.email || emp.EMAIL || '',
+                    password: '1234', // Mot de passe par défaut, ou géré autrement
+                    role: 'employe',
+                    equipe: emp.Equipe || emp.equipe || emp['Equipe'] || '',
+                    manager: (emp.Equipe || emp.equipe || emp['Equipe']) === 'Atelier Brest' ? 'thierry' : 'johan'
+                }));
+                
+                // Fusionner avec les managers
+                allUsers = [...CONFIG.managers, ...employes];
+                console.log("Liste complète des utilisateurs:", allUsers);
+                
+                // Mettre à jour l'affichage
+                loadEmployes();
+                
+            } catch (error) {
+                console.error("Erreur lors du chargement des employés:", error);
+                showToast("❌ Erreur de chargement des employés");
+                // En cas d'erreur, on peut charger une liste locale ou afficher un message
+                allUsers = CONFIG.managers; // Fallback sur les managers seulement
+                loadEmployes();
+            } finally {
+                showLoading(false);
+            }
+        }
+
 
       // ---------- AUTHENTIFICATION ----------
-      function login(email, password) {
-        const user = CONFIG.utilisateurs.find(u => u.email === email && u.password === password);
+      async function login(email, password) {
+        // Charger les employés depuis le Sheet à la connexion
+        // await loadEmployesFromSheet(); // Déplacé dans la gestion du succès de login
+        
+        // Trouver l'utilisateur dans la liste (allUsers sera remplie après chargement)
+        const user = allUsers.find(u => u.email === email && u.password === password);
         if (user) {
           currentUser = user;
-          document.getElementById('loginScreen').style.display = 'none'; // Cacher login
+          document.getElementById('loginScreen').style.display = 'none';
           if (user.role === 'manager') {
-            document.getElementById('managerApp').style.display = 'flex'; // Afficher manager
-            loadEmployes();
+            document.getElementById('managerApp').style.display = 'flex';
+            // Charger les employés depuis le Sheet ici
+            await loadEmployesFromSheet();
           } else {
-            document.getElementById('employeApp').style.display = 'flex'; // Afficher employé
+            document.getElementById('employeApp').style.display = 'flex';
             loadNotifications();
           }
           document.getElementById('currentDate').textContent = formatDate(new Date());
@@ -278,6 +325,7 @@
 
       function logout() {
         currentUser = null;
+        allUsers = [];
         // Cacher toutes les sections principales
         document.getElementById('loginScreen').style.display = 'flex';
         document.getElementById('managerApp').style.display = 'none';
@@ -286,6 +334,8 @@
         // Réinitialiser les formulaires
         document.getElementById('loginForm').reset();
         document.getElementById('loginError').classList.add('hidden');
+         // Vider la liste des employés
+        document.getElementById('employesList').innerHTML = '';
       }
 
       // ---------- GESTION DES EMPLOYÉS (Manager) ----------
@@ -294,7 +344,7 @@
             list.innerHTML = ''; // Vider la liste
 
             // Filtrer les employés appartenant à l'équipe du manager courant
-            const employesDuManager = CONFIG.utilisateurs.filter(u =>
+            const employesDuManager = allUsers.filter(u =>
                 u.role === 'employe' && u.manager === currentUser.email
             );
 
@@ -347,7 +397,7 @@
         // Fonction pour ouvrir le modal de contrôle
         function openControle(employeEmail) {
             console.log("Ouverture du contrôle pour:", employeEmail);
-            const employe = CONFIG.utilisateurs.find(u => u.email === employeEmail);
+            const employe = allUsers.find(u => u.email === employeEmail);
             if (!employe) {
                 console.error("Employé non trouvé:", employeEmail);
                 showToast("Erreur: Employé non trouvé.");
@@ -399,7 +449,6 @@
             });
 
             // Ajouter les écouteurs d'événements aux boutons de validation du modal
-            // *** CORRECTION : Ils sont ajoutés ici, quand le modal est ouvert ***
             document.querySelectorAll('.validerBtn').forEach(btn => {
                 btn.addEventListener('click', handleValiderBtnClick);
             });
@@ -408,10 +457,9 @@
         // Fonction pour fermer le modal
         function closeModal() {
             document.getElementById('modalControle').style.display = 'none';
-            // Note: Pour une application plus complexe, il faudrait nettoyer les écouteurs.
         }
 
-        // Gestionnaire d'événements pour les boutons +/- (placé dans la portée principale)
+        // Gestionnaire d'événements pour les boutons +/-
         function handleQtyBtnClick(event) {
              const empEmail = event.target.dataset.employe;
              const idx = parseInt(event.target.dataset.index);
@@ -419,14 +467,14 @@
              updateQty(empEmail, idx, isIncrease ? 1 : -1);
         }
 
-        // Gestionnaire d'événements pour les boutons de validation (placé dans la portée principale)
+        // Gestionnaire d'événements pour les boutons de validation
         async function handleValiderBtnClick(event) {
              const attenteConfirmation = event.target.dataset.attente === 'true';
              console.log("Bouton 'Valider' cliqué. Attente confirmation:", attenteConfirmation);
              await validerControle(attenteConfirmation);
         }
 
-        // Fonction principale de validation (placée dans la portée principale)
+        // Fonction principale de validation
         async function validerControle(attenteConfirmation) {
             console.log("Fonction validerControle appelée avec attenteConfirmation:", attenteConfirmation);
             // Vérifier d'abord si le modal est ouvert et qu'un employé est sélectionné
@@ -436,7 +484,7 @@
                 return;
             }
             const employeNom = employeNomElement.textContent;
-            const employe = CONFIG.utilisateurs.find(u => u.email === employeNom);
+            const employe = allUsers.find(u => u.email === employeNom);
             if (!employe) {
                 showToast("Erreur: Employé non trouvé.");
                 return;
@@ -479,9 +527,6 @@
                 };
                 notifications.push(notif);
                 localStorage.setItem('notifications_palettes', JSON.stringify(notifications));
-
-                // Vous pouvez gérer le timer d'auto-validation ici si nécessaire
-                // ...
             }
 
             // Envoyer les données au script Google Apps Script
@@ -587,13 +632,6 @@
                 notifications[index].reponseEmploye = reponse;
                 localStorage.setItem('notifications_palettes', JSON.stringify(notifications));
 
-                // Annuler le timer d'auto-validation si présent
-                // if (timers[notifId]) {
-                //     clearTimeout(timers[notifId]);
-                //     delete timers[notifId];
-                //     localStorage.setItem('timers_palettes', JSON.stringify(timers));
-                // }
-
                 // Optionnel: Envoyer la réponse au script GAS
                  const notifData = notifications[index];
                  const dataToSend = {
@@ -618,11 +656,11 @@
       document.addEventListener('DOMContentLoaded', () => {
         console.log("DOMContentLoaded - Initialisation des écouteurs principaux");
         // Attacher les écouteurs d'événements principaux
-        document.getElementById('loginForm').addEventListener('submit', (e) => {
+        document.getElementById('loginForm').addEventListener('submit', async (e) => {
           e.preventDefault();
           const email = document.getElementById('email').value.trim();
           const password = document.getElementById('password').value;
-          const success = login(email, password);
+          const success = await login(email, password); // Attendre la fin du login/chargement
           if (!success) {
             document.getElementById('loginError').classList.remove('hidden');
           } else {
@@ -633,7 +671,6 @@
         document.getElementById('logoutBtn').addEventListener('click', logout);
         document.getElementById('logoutBtnEmploye').addEventListener('click', logout);
         document.getElementById('closeModalBtn').addEventListener('click', closeModal);
-        // *** Les écouteurs pour les boutons de validation dans le modal sont ajoutés dans openControle ***
       });
 
     })(); // Fin de l'IIFE
