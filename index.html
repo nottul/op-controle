@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Contrôles - Ouest Palettes</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -13,31 +13,124 @@
     .status-pending { background-color: #f59e0b; }   /* jaune 🟡 */
     .status-new { background-color: #6b7280; }       /* gris ⚪ */
     .qty-btn { width: 30px; height: 30px; font-size: 18px; font-weight: bold; }
+    /* Cache les sections par défaut */
+    #managerApp, #employeApp, #modalControle { display: none; }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
 
-  <!-- Script JS au début pour éviter login is not defined -->
+  <!-- Écran de connexion -->
+  <div id="loginScreen" class="flex flex-col items-center justify-center h-screen px-6">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md text-center">
+      <img src="https://i.ibb.co/6cRdDfrM/logo-ouest-palettes.png" alt="Ouest Palettes" class="w-40 h-12 mx-auto mb-4" />
+      <p class="text-lg font-semibold text-blue-600 mb-6">Contrôles de Production</p>
+      
+      <!-- Formulaire de connexion -->
+      <form id="loginForm" class="space-y-4">
+        <input id="email" type="text" placeholder="Identifiant" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="username" />
+        <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="current-password" />
+        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Se connecter</button>
+      </form>
+
+      <p id="loginError" class="text-red-500 text-sm mt-2 hidden">Identifiant ou mot de passe incorrect</p>
+    </div>
+  </div>
+
+  <!-- Application Manager -->
+  <div id="managerApp">
+    <header class="bg-white shadow-sm p-4">
+      <div class="flex justify-between items-center">
+        <h1 class="text-xl font-bold">📋 Contrôles — <span id="currentDate"></span></h1>
+        <button id="logoutBtn" class="text-sm text-red-500">Déconnexion</button>
+      </div>
+    </header>
+
+    <div class="flex-1 p-4 space-y-6 overflow-y-auto">
+      <div class="bg-white p-5 rounded-xl shadow">
+        <h2 class="font-semibold mb-4">Mes Employés</h2>
+        <div id="employesList" class="space-y-3">
+            <!-- Liste des employés sera insérée ici par JS -->
+        </div>
+      </div>
+    </div>
+
+    <div id="offlineBar" class="hidden bg-yellow-500 text-white text-center py-2 text-sm">
+        📴 Hors ligne. Les données seront envoyées dès que vous serez en ligne.
+    </div>
+  </div>
+
+  <!-- Application Employé -->
+  <div id="employeApp">
+    <header class="bg-white shadow-sm p-4">
+      <div class="flex justify-between items-center">
+        <h1 class="text-xl font-bold">🔔 Notifications</h1>
+        <button id="logoutBtnEmploye" class="text-sm text-red-500">Déconnexion</button>
+      </div>
+    </header>
+
+    <div class="flex-1 p-4 space-y-6 overflow-y-auto">
+      <div class="bg-white p-5 rounded-xl shadow">
+        <h2 class="font-semibold mb-4">Contrôles en attente</h2>
+        <div id="notificationsList" class="space-y-3">
+             <!-- Notifications seront insérées ici par JS -->
+        </div>
+        <p id="noNotifications" class="text-gray-500 text-center py-4 hidden">
+            Aucun contrôle en attente
+        </p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal Fiche Contrôle -->
+  <div id="modalControle">
+    <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 relative">
+        <button id="closeModalBtn" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">×</button>
+        <h2 class="text-xl font-bold mb-4">📅 <span id="modalDate"></span></h2>
+        <h3 class="text-lg font-semibold mb-4">👤 <span id="modalEmployeNom"></span></h3>
+
+        <div id="produitsList" class="space-y-4 mb-6">
+            <!-- Liste des produits avec +/- sera insérée ici par JS -->
+        </div>
+
+        <div class="flex space-x-2">
+          <button id="validerSansConfirmationBtn" class="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold">
+              ✅ Valider sans confirmation
+          </button>
+          <button id="validerAvecConfirmationBtn" class="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">
+              🔄 Valider et attendre confirmation
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast" class="fixed bottom-5 left-1/2 bg-black text-white px-4 py-2 rounded-lg text-sm hidden transform -translate-x-1/2 transition-opacity duration-300"></div>
+
   <script>
-    document.addEventListener('DOMContentLoaded', function () {
+    (() => { // IIFE pour éviter les conflits de scope global
       // ---------- CONFIG ----------
       const CONFIG = {
-        // Managers codés en dur
-        managers: [
+        // Liste des utilisateurs (comme dans Prospects)
+        utilisateurs: [
           { email: 'thierry', password: '1234', role: 'manager', equipe: 'Atelier Brest' },
-          { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' }
+          { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' },
+          // Les employés seront chargés dynamiquement ou codés ici si statique
+          // Pour cet exemple, on les code aussi, mais on pourrait les charger via un appel API
+          { email: 'jean.dupont', password: '1234', role: 'employe', manager: 'thierry' },
+          { email: 'marc.lefebvre', password: '1234', role: 'employe', manager: 'thierry' },
+          { email: 'sophie.martin', password: '1234', role: 'employe', manager: 'johan' }
         ],
-        // URL du script Google Apps Script - LA BONNE URL
+        // URL du script Google Apps Script - A METTRE A JOUR !
         urlScript: 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec',
-        delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures
+        delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures en ms
       };
 
-      // ---------- ÉTAT ----------
+      // ---------- ÉTAT de l'Application ----------
       let currentUser = null;
-      let allUsers = []; // Employés + Managers
-      let controlesEnCours = JSON.parse(localStorage.getItem('controlesEnCours') || '{}');
-      let notifications = JSON.parse(localStorage.getItem('notifications') || '[]');
-      let timers = JSON.parse(localStorage.getItem('timers') || '{}');
+      let controlesEnCours = JSON.parse(localStorage.getItem('controlesEnCours_palettes') || '{}');
+      let notifications = JSON.parse(localStorage.getItem('notifications_palettes') || '[]');
+      let timers = JSON.parse(localStorage.getItem('timers_palettes') || '{}');
 
       // ---------- UTILITAIRES ----------
       function formatDate(date) {
@@ -53,390 +146,465 @@
 
       function checkOnlineStatus() {
         const bar = document.getElementById('offlineBar');
-        window.addEventListener('online', () => { bar.classList.add('hidden'); syncOfflineData(); });
-        window.addEventListener('offline', () => { bar.classList.remove('hidden'); });
-        if (!navigator.onLine) bar.classList.remove('hidden');
+        const updateBar = () => {
+            if (navigator.onLine) {
+                bar?.classList.add('hidden');
+                syncOfflineData(); // Tenter de synchroniser si on revient en ligne
+            } else {
+                bar?.classList.remove('hidden');
+            }
+        };
+        window.addEventListener('online', updateBar);
+        window.addEventListener('offline', updateBar);
+        updateBar(); // Vérifier l'état initial
       }
 
-      // ---------- AUTH ----------
-      function login() {
-        const email = document.getElementById('email').value.trim();
-        const password = document.getElementById('password').value;
-
-        console.log("Tentative de connexion pour:", email);
-        console.log("URL du script utilisée:", CONFIG.urlScript);
-
-        // Charger les employés depuis Google Sheet
-        fetch(CONFIG.urlScript)
-          .then(response => {
-            console.log("Réponse brute du fetch:", response);
-            if (!response.ok) {
-              throw new Error(`HTTP error! status: ${response.status}`);
-            }
-            return response.json();
-          })
-          .then(employesData => {
-            console.log("Données reçues du script:", employesData);
-            
-            // Vérifier s'il y a une erreur dans la réponse
-            if (employesData && employesData.error) {
-              throw new Error(employesData.error);
+       // ---------- COMMUNICATION AVEC GOOGLE APPS SCRIPT ----------
+       async function sendToGoogleScript(data) {
+            if (!navigator.onLine) {
+                showToast('⚠️ Mode hors ligne — sauvegardé localement');
+                // Sauvegarder localement pour envoi différé
+                const offlineQueue = JSON.parse(localStorage.getItem('offlineQueue_palettes') || '[]');
+                offlineQueue.push({...data, timestamp: Date.now()});
+                localStorage.setItem('offlineQueue_palettes', JSON.stringify(offlineQueue));
+                return {status: 'offline', message: 'Sauvegardé localement'};
             }
 
-            // Transformer les employés en utilisateurs
-            // Gestion des cas où l'API retourne un tableau ou un objet avec une propriété tableau
-            let rawData = employesData;
-            if (employesData && employesData.employes) {
-              rawData = employesData.employes;
+            try {
+                console.log("Envoi des données au script GAS:", data);
+                const response = await fetch(CONFIG.urlScript, {
+                    method: 'POST',
+                    // Crucial : comme dans Prospects
+                    body: JSON.stringify(data),
+                    headers: { 'Content-Type': 'text/plain' } // <-- Clé: text/plain
+                });
+
+                if (!response.ok) {
+                   const errorText = await response.text();
+                   console.error("Erreur HTTP:", response.status, errorText);
+                   throw new Error(`Erreur HTTP ${response.status}: ${errorText}`);
+                }
+
+                const responseText = await response.text();
+                console.log("Réponse brute du script GAS:", responseText);
+                let result;
+                try {
+                    result = JSON.parse(responseText);
+                } catch (e) {
+                    console.error("Impossible de parser la réponse JSON:", responseText);
+                    throw new Error("Réponse invalide du serveur: " + responseText);
+                }
+
+                if (result.status !== 'success') {
+                    throw new Error(result.message || "Erreur inconnue du script Google Apps");
+                }
+
+                console.log("Données envoyées avec succès:", result);
+                return result;
+
+            } catch (error) {
+                console.error('Erreur lors de l\'envoi au script GAS:', error);
+                showToast('⚠️ Erreur d’envoi — sauvegardé localement');
+                // En cas d'erreur réseau, sauvegarder aussi localement
+                const offlineQueue = JSON.parse(localStorage.getItem('offlineQueue_palettes') || '[]');
+                offlineQueue.push({...data, timestamp: Date.now(), error: error.message});
+                localStorage.setItem('offlineQueue_palettes', JSON.stringify(offlineQueue));
+                return {status: 'error', message: error.message};
             }
-            
-            const employes = Array.isArray(rawData) ? rawData.map(emp => ({
-              email: emp.Email || emp.email || emp.EMAIL || '',
-              password: '1234',
-              role: 'employe',
-              equipe: emp.Equipe || emp.equipe || emp['Equipe'] || '',
-              manager: (emp.Equipe || emp.equipe || emp['Equipe']) === 'Atelier Brest' ? 'thierry' : 'johan'
-            })) : [];
+        }
 
-            // Fusionner avec les managers
-            allUsers = [...CONFIG.managers, ...employes];
+        async function syncOfflineData() {
+            if (!navigator.onLine) return;
 
-            console.log("Liste complète des utilisateurs:", allUsers);
+            const offlineQueue = JSON.parse(localStorage.getItem('offlineQueue_palettes') || '[]');
+            if (offlineQueue.length === 0) return;
 
-            // Trouver l'utilisateur
-            const user = allUsers.find(u => u.email === email && u.password === password);
-            console.log("Utilisateur trouvé:", user);
-            
-            if (user) {
-              currentUser = user;
-              document.getElementById('loginScreen').classList.add('hidden');
-              if (user.role === 'manager') {
-                document.getElementById('managerApp').classList.remove('hidden');
-                loadEmployes();
-              } else {
-                document.getElementById('employeApp').classList.remove('hidden');
-                loadNotifications();
-              }
-              document.getElementById('currentDate').textContent = formatDate(new Date());
-              document.getElementById('modalDate').textContent = formatDate(new Date());
-              checkOnlineStatus();
+            console.log(`Tentative de synchronisation de ${offlineQueue.length} éléments hors ligne...`);
+            const remainingItems = [];
+            for (const item of offlineQueue) {
+                try {
+                    // Supprime les propriétés ajoutées localement avant l'envoi
+                    const { timestamp, error, ...dataToSend } = item;
+                    const result = await sendToGoogleScript(dataToSend);
+                    if (result.status !== 'success') {
+                        // Si l'envoi échoue à nouveau, le garder dans la file
+                        remainingItems.push(item);
+                    } else {
+                        console.log("Élément synchronisé:", item);
+                    }
+                } catch (e) {
+                    console.error("Échec de synchronisation d'un élément:", item, e);
+                    // Garder l'élément en cas d'erreur persistante
+                    remainingItems.push(item);
+                }
+            }
+            localStorage.setItem('offlineQueue_palettes', JSON.stringify(remainingItems));
+            if (remainingItems.length === 0) {
+                 showToast('✅ Données hors ligne synchronisées');
             } else {
-              document.getElementById('loginError').classList.remove('hidden');
+                 showToast(`⚠️ ${remainingItems.length} éléments non synchronisés`);
             }
-          })
-          .catch(err => {
-            console.error("Erreur détaillée de chargement des employés :", err);
-            alert("Impossible de charger les employés depuis le Google Sheet. Vérifie la console pour plus de détails.");
-          });
+        }
+
+
+      // ---------- AUTHENTIFICATION ----------
+      function login(email, password) {
+        const user = CONFIG.utilisateurs.find(u => u.email === email && u.password === password);
+        if (user) {
+          currentUser = user;
+          document.getElementById('loginScreen').style.display = 'none'; // Cacher login
+          if (user.role === 'manager') {
+            document.getElementById('managerApp').style.display = 'flex'; // Afficher manager
+            loadEmployes();
+          } else {
+            document.getElementById('employeApp').style.display = 'flex'; // Afficher employé
+            loadNotifications();
+          }
+          document.getElementById('currentDate').textContent = formatDate(new Date());
+          document.getElementById('modalDate').textContent = formatDate(new Date());
+          checkOnlineStatus();
+          syncOfflineData(); // Tenter de sync au login
+          return true;
+        } else {
+          return false;
+        }
       }
 
       function logout() {
         currentUser = null;
-        document.getElementById('loginScreen').classList.remove('hidden');
-        document.getElementById('managerApp').classList.add('hidden');
-        document.getElementById('employeApp').classList.add('hidden');
-        document.getElementById('modalControle').classList.add('hidden');
+        // Cacher toutes les sections principales
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('managerApp').style.display = 'none';
+        document.getElementById('employeApp').style.display = 'none';
+        document.getElementById('modalControle').style.display = 'none';
+        // Réinitialiser les formulaires
+        document.getElementById('loginForm').reset();
+        document.getElementById('loginError').classList.add('hidden');
       }
 
-      // ---------- MANAGER ----------
-      function loadEmployes() {
-        const list = document.getElementById('employesList');
-        list.innerHTML = '';
+      // ---------- GESTION DES EMPLOYÉS (Manager) ----------
+       function loadEmployes() {
+            const list = document.getElementById('employesList');
+            list.innerHTML = ''; // Vider la liste
 
-        const employes = allUsers.filter(u => u.role === 'employe' && u.manager === currentUser.email);
+            // Filtrer les employés appartenant à l'équipe du manager courant
+            const employesDuManager = CONFIG.utilisateurs.filter(u =>
+                u.role === 'employe' && u.manager === currentUser.email
+            );
 
-        employes.forEach(emp => {
-          let statut = 'new'; // ⚪
-          if (controlesEnCours[emp.email]?.statut === 'pending') {
-            statut = 'pending'; // 🟡
-          } else if (controlesEnCours[emp.email]?.statut === 'done') {
-            statut = 'done'; // ✅
-          }
-
-          const item = document.createElement('div');
-          item.className = 'border p-3 rounded-lg bg-gray-50 flex justify-between items-center';
-          item.innerHTML = `
-            <div>
-              <span class="status-badge status-${statut}"></span>
-              <span class="font-medium">${emp.email.split('.')[0].charAt(0).toUpperCase() + emp.email.split('.')[0].slice(1)}</span>
-            </div>
-            <button onclick="openControle('${emp.email}')" class="bg-blue-600 text-white px-3 py-1 rounded text-sm">
-              ${statut === 'new' ? 'Contrôler' : 'Modifier'}
-            </button>
-          `;
-          list.appendChild(item);
-        });
-      }
-
-      function openControle(employeEmail) {
-        const employe = allUsers.find(u => u.email === employeEmail);
-        document.getElementById('modalEmployeNom').textContent = employe.email;
-
-        // Charger les produits depuis localStorage ou initialiser
-        const produits = controlesEnCours[employe.email]?.produits || [
-          { designation: 'Palette EURO neuve', qté: 0 },
-          { designation: 'Palette réparée H1', qté: 0 },
-          { designation: 'Palette perdue', qté: 0 }
-        ];
-
-        const produitsList = document.getElementById('produitsList');
-        produitsList.innerHTML = '';
-
-        produits.forEach((prod, index) => {
-          const div = document.createElement('div');
-          div.className = 'flex items-center justify-between p-3 bg-gray-100 rounded-lg';
-          div.innerHTML = `
-            <span>${prod.designation}</span>
-            <div class="flex items-center space-x-2">
-              <button class="qty-btn bg-gray-300 rounded" onclick="updateQty('${employeEmail}', ${index}, -1)">-</button>
-              <span id="qty-${employeEmail}-${index}" class="font-bold w-12 text-center">${prod.qté}</span>
-              <button class="qty-btn bg-gray-300 rounded" onclick="updateQty('${employeEmail}', ${index}, 1)">+</button>
-            </div>
-          `;
-          produitsList.appendChild(div);
-        });
-
-        controlesEnCours[employeEmail] = controlesEnCours[employeEmail] || {};
-        controlesEnCours[employeEmail].produits = produits;
-
-        document.getElementById('modalControle').classList.remove('hidden');
-      }
-
-      function closeModal() {
-        document.getElementById('modalControle').classList.add('hidden');
-      }
-
-      function updateQty(employeEmail, index, delta) {
-        const produits = controlesEnCours[employeEmail].produits;
-        produits[index].qté = Math.max(0, produits[index].qté + delta);
-        document.getElementById(`qty-${employeEmail}-${index}`).textContent = produits[index].qté;
-        controlesEnCours[employeEmail].produits = produits;
-        localStorage.setItem('controlesEnCours', JSON.stringify(controlesEnCours));
-      }
-
-      function validerControle(attenteConfirmation) {
-        const employeNom = document.getElementById('modalEmployeNom').textContent;
-        const employe = allUsers.find(u => u.email.includes(employeNom.toLowerCase()));
-        const produits = controlesEnCours[employe.email].produits;
-
-        if (produits.every(p => p.qté === 0)) {
-          alert('Veuillez saisir au moins une quantité.');
-          return;
-        }
-
-        const controle = {
-          manager: currentUser.email,
-          employe: employe.email,
-          produits: produits,
-          date: new Date().toISOString(),
-          statut: attenteConfirmation ? 'pending' : 'done',
-          reponseEmploye: null,
-          timestampValidation: Date.now()
-        };
-
-        controlesEnCours[employe.email] = controle;
-        localStorage.setItem('controlesEnCours', JSON.stringify(controlesEnCours));
-
-        if (attenteConfirmation) {
-          const notif = {
-            id: Date.now().toString(),
-            ...controle
-          };
-          notifications.push(notif);
-          localStorage.setItem('notifications', JSON.stringify(notifications));
-
-          const timerId = setTimeout(() => {
-            autoValiderControle(notif.id);
-          }, CONFIG.delaiAutoValidation);
-
-          timers[notif.id] = timerId;
-          localStorage.setItem('timers', JSON.stringify(timers));
-        }
-
-        sendToGoogleScript(controle);
-
-        closeModal();
-        loadEmployes();
-        showToast(`✅ Contrôle enregistré pour ${employeNom}`);
-      }
-
-      function autoValiderControle(notifId) {
-        const index = notifications.findIndex(n => n.id === notifId);
-        if (index !== -1) {
-          notifications[index].statut = 'done';
-          notifications[index].reponseEmploye = 'auto';
-          localStorage.setItem('notifications', JSON.stringify(notifications));
-          delete timers[notifId];
-          localStorage.setItem('timers', JSON.stringify(timers));
-        }
-      }
-
-      // ---------- EMPLOYÉ ----------
-      function loadNotifications() {
-        const list = document.getElementById('notificationsList');
-        const noNotif = document.getElementById('noNotifications');
-        list.innerHTML = '';
-
-        const mesNotifs = notifications.filter(n => n.employe === currentUser.email && n.statut === 'pending');
-
-        if (mesNotifs.length === 0) {
-          noNotif.classList.remove('hidden');
-          return;
-        }
-        noNotif.classList.add('hidden');
-
-        mesNotifs.forEach(notif => {
-          const item = document.createElement('div');
-          item.className = 'border p-4 rounded-lg bg-blue-50';
-          let produitsHtml = '';
-          notif.produits.forEach(p => {
-            if (p.qté > 0) produitsHtml += `<div>${p.designation}: <strong>${p.qté}</strong></div>`;
-          });
-
-          item.innerHTML = `
-            <p class="text-sm text-gray-500">Contrôle du ${formatDate(new Date(notif.date))} par ${notif.manager}</p>
-            ${produitsHtml}
-            <div class="flex space-x-2 mt-4">
-              <button onclick="repondreControle('${notif.id}', 'valide')" class="flex-1 bg-green-600 text-white py-2 rounded text-sm">✅ Je valide</button>
-              <button onclick="repondreControle('${notif.id}', 'recontrole')" class="flex-1 bg-yellow-600 text-white py-2 rounded text-sm">🔄 Demander recontrôle</button>
-            </div>
-          `;
-          list.appendChild(item);
-        });
-      }
-
-      function repondreControle(notifId, reponse) {
-        const index = notifications.findIndex(n => n.id === notifId);
-        if (index !== -1) {
-          notifications[index].statut = 'done';
-          notifications[index].reponseEmploye = reponse;
-          localStorage.setItem('notifications', JSON.stringify(notifications));
-
-          if (timers[notifId]) {
-            clearTimeout(timers[notifId]);
-            delete timers[notifId];
-            localStorage.setItem('timers', JSON.stringify(timers));
-          }
-
-          sendToGoogleScript(notifications[index]);
-          loadNotifications();
-          showToast(`✅ Réponse enregistrée`);
-        }
-      }
-
-      // ---------- ENVOI GOOGLE SCRIPT ----------
-      function sendToGoogleScript(data) {
-        if (!navigator.onLine) {
-          showToast('⚠️ Mode hors ligne — sauvegardé localement');
-          return;
-        }
-
-        fetch(CONFIG.urlScript, {
-          method: 'POST',
-          body: JSON.stringify(data),
-          headers: { 
-            'Content-Type': 'text/plain' // Changé de application/json à text/plain pour compatibilité GAS
-          }
-        })
-        .then(async (response) => {
-          let result;
-          try {
-            result = await response.json();
-          } catch (e) {
-            // Si le parsing JSON échoue, on essaie de récupérer le texte brut
-            const text = await response.text();
-            try {
-              result = JSON.parse(text);
-            } catch (e2) {
-              throw new Error(`Réponse invalide du serveur: ${text}`);
+            if (employesDuManager.length === 0) {
+                list.innerHTML = '<p class="text-gray-500">Aucun employé trouvé.</p>';
+                return;
             }
+
+            employesDuManager.forEach(emp => {
+                // Déterminer le statut du contrôle pour cet employé
+                let statut = 'new'; // ⚪ Par défaut
+                let label = 'Non contrôlé';
+                if (controlesEnCours[emp.email]?.statut === 'pending') {
+                    statut = 'pending'; // 🟡
+                    label = 'En attente de validation';
+                } else if (controlesEnCours[emp.email]?.statut === 'done') {
+                    statut = 'done'; // ✅
+                    label = 'Contrôle validé';
+                }
+
+                const item = document.createElement('div');
+                item.className = 'border p-3 rounded-lg bg-gray-50 flex justify-between items-center';
+                // Extraire le prénom de l'email pour l'affichage
+                const prenom = emp.email.split('.')[0].charAt(0).toUpperCase() + emp.email.split('.')[0].slice(1);
+                item.innerHTML = `
+                    <div>
+                        <span class="status-badge status-${statut}"></span>
+                        <span class="font-medium">${prenom}</span>
+                    </div>
+                    <button class="openControleBtn bg-blue-600 text-white px-3 py-1 rounded text-sm"
+                            data-employe-email="${emp.email}">
+                        ${statut === 'new' ? 'Contrôler' : 'Modifier'}
+                    </button>
+                `;
+                list.appendChild(item);
+            });
+
+            // Ajouter les écouteurs d'événements aux boutons
+            document.querySelectorAll('.openControleBtn').forEach(button => {
+                button.addEventListener('click', (event) => {
+                    const employeEmail = event.target.dataset.employeEmail;
+                    openControle(employeEmail);
+                });
+            });
+        }
+
+
+       function openControle(employeEmail) {
+            const employe = CONFIG.utilisateurs.find(u => u.email === employeEmail);
+            if (!employe) {
+                console.error("Employé non trouvé:", employeEmail);
+                showToast("Erreur: Employé non trouvé.");
+                return;
+            }
+
+            document.getElementById('modalEmployeNom').textContent = employe.email;
+
+            // Charger les produits depuis localStorage ou initialiser
+            // On pourrait aussi imaginer les charger depuis le Sheet, mais pour simplifier...
+            const produits = controlesEnCours[employe.email]?.produits || [
+                { designation: 'Palette EURO neuve', qté: 0 },
+                { designation: 'Palette réparée H1', qté: 0 },
+                { designation: 'Palette perdue', qté: 0 }
+            ];
+
+            const produitsList = document.getElementById('produitsList');
+            produitsList.innerHTML = '';
+
+            produits.forEach((prod, index) => {
+                const div = document.createElement('div');
+                div.className = 'flex items-center justify-between p-3 bg-gray-100 rounded-lg';
+                div.innerHTML = `
+                    <span>${prod.designation}</span>
+                    <div class="flex items-center space-x-2">
+                        <button class="qty-btn bg-gray-300 rounded decreaseQtyBtn" data-employe="${employeEmail}" data-index="${index}">-</button>
+                        <span id="qty-${employeEmail}-${index}" class="font-bold w-12 text-center">${prod.qté}</span>
+                        <button class="qty-btn bg-gray-300 rounded increaseQtyBtn" data-employe="${employeEmail}" data-index="${index}">+</button>
+                    </div>
+                `;
+                produitsList.appendChild(div);
+            });
+
+            // Sauvegarder dans l'état temporaire
+            if (!controlesEnCours[employeEmail]) {
+                 controlesEnCours[employeEmail] = {};
+            }
+            controlesEnCours[employeEmail].produits = produits;
+            localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
+
+            // Afficher le modal
+            document.getElementById('modalControle').style.display = 'block';
+
+            // Ajouter les écouteurs d'événements aux boutons +/- du modal
+            // Il faut les réattacher à chaque ouverture du modal
+            document.querySelectorAll('.decreaseQtyBtn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const empEmail = e.target.dataset.employe;
+                    const idx = parseInt(e.target.dataset.index);
+                    updateQty(empEmail, idx, -1);
+                });
+            });
+            document.querySelectorAll('.increaseQtyBtn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const empEmail = e.target.dataset.employe;
+                    const idx = parseInt(e.target.dataset.index);
+                    updateQty(empEmail, idx, 1);
+                });
+            });
+        }
+
+        function closeModal() {
+            document.getElementById('modalControle').style.display = 'none';
+        }
+
+        function updateQty(employeEmail, index, delta) {
+            if (!controlesEnCours[employeEmail] || !controlesEnCours[employeEmail].produits) {
+                console.warn("État des produits non trouvé pour", employeEmail);
+                return;
+            }
+            const produits = controlesEnCours[employeEmail].produits;
+            if (index >= 0 && index < produits.length) {
+                produits[index].qté = Math.max(0, produits[index].qté + delta);
+                document.getElementById(`qty-${employeEmail}-${index}`).textContent = produits[index].qté;
+                // Mettre à jour le localStorage
+                localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
+            }
+        }
+
+
+       async function validerControle(attenteConfirmation) {
+            const employeNom = document.getElementById('modalEmployeNom').textContent;
+            const employe = CONFIG.utilisateurs.find(u => u.email === employeNom);
+            if (!employe) {
+                showToast("Erreur: Employé non trouvé.");
+                return;
+            }
+
+            const produits = controlesEnCours[employe.email]?.produits;
+            if (!produits || produits.length === 0) {
+                alert('Aucun produit à contrôler.');
+                return;
+            }
+
+            // Vérifier qu'au moins une quantité est saisie
+            if (produits.every(p => p.qté === 0)) {
+                alert('Veuillez saisir au moins une quantité.');
+                return;
+            }
+
+            const controle = {
+                manager: currentUser.email,
+                employe: employe.email,
+                produits: produits,
+                date: new Date().toISOString(),
+                statut: attenteConfirmation ? 'pending' : 'done',
+                reponseEmploye: null,
+                timestampValidation: Date.now()
+            };
+
+            // Mettre à jour l'état local
+            controlesEnCours[employe.email] = controle;
+            localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
+
+            if (attenteConfirmation) {
+                // Ajouter notification pour l'employé
+                const notif = {
+                    id: Date.now().toString(),
+                    ...controle
+                };
+                notifications.push(notif);
+                localStorage.setItem('notifications_palettes', JSON.stringify(notifications));
+
+                // Programmer auto-validation (optionnel, géré côté client ici)
+                // const timerId = setTimeout(() => {
+                //     autoValiderControle(notif.id);
+                // }, CONFIG.delaiAutoValidation);
+                // timers[notif.id] = timerId;
+                // localStorage.setItem('timers_palettes', JSON.stringify(timers));
+            }
+
+            // Envoyer les données au script Google Apps Script
+            const result = await sendToGoogleScript(controle);
+
+            if (result.status === 'success') {
+                closeModal();
+                loadEmployes(); // Recharger la liste pour mettre à jour le statut
+                showToast(`✅ Contrôle enregistré pour ${employeNom}`);
+            } else if (result.status === 'offline') {
+                 closeModal();
+                 loadEmployes();
+                 showToast(`💾 Contrôle sauvegardé localement pour ${employeNom}`);
+            } else {
+                 showToast(`❌ Erreur: ${result.message}`);
+            }
+        }
+
+
+      // ---------- GESTION DES NOTIFICATIONS (Employé) ----------
+       function loadNotifications() {
+            const list = document.getElementById('notificationsList');
+            const noNotif = document.getElementById('noNotifications');
+            list.innerHTML = '';
+
+            // Filtrer les notifications pour l'employé courant et en attente
+            const mesNotifs = notifications.filter(n =>
+                n.employe === currentUser.email && n.statut === 'pending'
+            );
+
+            if (mesNotifs.length === 0) {
+                noNotif.classList.remove('hidden');
+                return;
+            }
+            noNotif.classList.add('hidden');
+
+            mesNotifs.forEach(notif => {
+                const item = document.createElement('div');
+                item.className = 'border p-4 rounded-lg bg-blue-50';
+                let produitsHtml = '';
+                if (Array.isArray(notif.produits)) {
+                    notif.produits.forEach(p => {
+                        if (p && p.qté > 0) {
+                            produitsHtml += `<div>${p.designation}: <strong>${p.qté}</strong></div>`;
+                        }
+                    });
+                }
+
+                item.innerHTML = `
+                    <p class="text-sm text-gray-500">
+                        Contrôle du ${formatDate(new Date(notif.date))} par ${notif.manager}
+                    </p>
+                    ${produitsHtml}
+                    <div class="flex space-x-2 mt-4">
+                        <button class="repondreControleBtn valideBtn flex-1 bg-green-600 text-white py-2 rounded text-sm"
+                                data-notif-id="${notif.id}" data-reponse="valide">
+                            ✅ Je valide
+                        </button>
+                        <button class="repondreControleBtn recontroleBtn flex-1 bg-yellow-600 text-white py-2 rounded text-sm"
+                                data-notif-id="${notif.id}" data-reponse="recontrole">
+                            🔄 Demander recontrôle
+                        </button>
+                    </div>
+                `;
+                list.appendChild(item);
+            });
+
+            // Ajouter les écouteurs d'événements aux boutons de réponse
+            document.querySelectorAll('.repondreControleBtn').forEach(button => {
+                button.addEventListener('click', async (event) => {
+                    const notifId = event.target.dataset.notifId;
+                    const reponse = event.target.dataset.reponse;
+                    await repondreControle(notifId, reponse);
+                });
+            });
+        }
+
+        async function repondreControle(notifId, reponse) {
+            const index = notifications.findIndex(n => n.id === notifId);
+            if (index !== -1) {
+                notifications[index].statut = 'done';
+                notifications[index].reponseEmploye = reponse;
+                localStorage.setItem('notifications_palettes', JSON.stringify(notifications));
+
+                // Annuler le timer d'auto-validation si présent
+                // if (timers[notifId]) {
+                //     clearTimeout(timers[notifId]);
+                //     delete timers[notifId];
+                //     localStorage.setItem('timers_palettes', JSON.stringify(timers));
+                // }
+
+                // Optionnel: Envoyer la réponse au script GAS
+                 const notifData = notifications[index];
+                 const dataToSend = {
+                     ...notifData,
+                     action: 'reponse_employe',
+                     reponse_employe: reponse
+                 };
+                 const result = await sendToGoogleScript(dataToSend);
+                 if(result.status === 'success') {
+                      console.log("Réponse de l'employé envoyée:", reponse);
+                 } else {
+                      console.warn("Échec de l'envoi de la réponse de l'employé:", result.message);
+                 }
+
+                loadNotifications(); // Recharger la liste
+                showToast(`✅ Réponse enregistrée`);
+            }
+        }
+
+
+      // ---------- INITIALISATION ----------
+      document.addEventListener('DOMContentLoaded', () => {
+        // Attacher les écouteurs d'événements
+        document.getElementById('loginForm').addEventListener('submit', (e) => {
+          e.preventDefault();
+          const email = document.getElementById('email').value.trim();
+          const password = document.getElementById('password').value;
+          const success = login(email, password);
+          if (!success) {
+            document.getElementById('loginError').classList.remove('hidden');
+          } else {
+            document.getElementById('loginError').classList.add('hidden');
           }
-          
-          if (result.status !== 'success') throw new Error(result.message || 'Erreur inconnue du serveur');
-        })
-        .catch(err => {
-          console.error('Erreur:', err);
-          showToast('⚠️ Erreur d’envoi — sauvegardé localement');
         });
-      }
 
-      function syncOfflineData() {
-        // À implémenter si besoin de ré-envoyer les données non envoyées
-      }
+        document.getElementById('logoutBtn').addEventListener('click', logout);
+        document.getElementById('logoutBtnEmploye').addEventListener('click', logout);
+        document.getElementById('closeModalBtn').addEventListener('click', closeModal);
+        document.getElementById('validerSansConfirmationBtn').addEventListener('click', () => validerControle(false));
+        document.getElementById('validerAvecConfirmationBtn').addEventListener('click', () => validerControle(true));
 
-    }); // Fin de DOMContentLoaded
+        // Vérifier l'état initial (si déjà connecté, par exemple après refresh)
+        // Cela nécessiterait de stocker le currentUser, mais pour simplifier...
+        // On reste sur l'écran de login par défaut.
+      });
+
+    })(); // Fin de l'IIFE
   </script>
-
-  <!-- Écran de connexion -->
-  <div id="loginScreen" class="flex flex-col items-center justify-center h-screen px-6">
-    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md text-center">
-      <img src="https://i.ibb.co/6cRdDfrM/logo-ouest-palettes.png" alt="Ouest Palettes" class="w-40 h-12 mx-auto mb-4" />
-      <p class="text-lg font-semibold text-blue-600 mb-6">Contrôles de Production</p>
-
-      <form onsubmit="event.preventDefault(); login();" class="space-y-4">
-        <input id="email" type="text" placeholder="Identifiant" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="username" />
-        <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="current-password" />
-        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Se connecter</button>
-      </form>
-
-      <p id="loginError" class="text-red-500 text-sm mt-2 hidden">Identifiant ou mot de passe incorrect</p>
-    </div>
-  </div>
-
-  <!-- Application Manager -->
-  <div id="managerApp" class="hidden flex-col h-screen">
-    <header class="bg-white shadow-sm p-4">
-      <div class="flex justify-between items-center">
-        <h1 class="text-xl font-bold">📋 Contrôles — <span id="currentDate"></span></h1>
-        <button onclick="logout()" class="text-sm text-red-500">Déconnexion</button>
-      </div>
-    </header>
-
-    <div class="flex-1 p-4 space-y-6 overflow-y-auto">
-      <div class="bg-white p-5 rounded-xl shadow">
-        <h2 class="font-semibold mb-4">Mes Employés</h2>
-        <div id="employesList" class="space-y-3"></div>
-      </div>
-    </div>
-
-    <div id="offlineBar" class="hidden bg-yellow-500 text-white text-center py-2 text-sm">📴 Hors ligne. Les données seront envoyées dès que vous serez en ligne.</div>
-  </div>
-
-  <!-- Application Employé -->
-  <div id="employeApp" class="hidden flex-col h-screen">
-    <header class="bg-white shadow-sm p-4">
-      <div class="flex justify-between items-center">
-        <h1 class="text-xl font-bold">🔔 Notifications</h1>
-        <button onclick="logout()" class="text-sm text-red-500">Déconnexion</button>
-      </div>
-    </header>
-
-    <div class="flex-1 p-4 space-y-6 overflow-y-auto">
-      <div class="bg-white p-5 rounded-xl shadow">
-        <h2 class="font-semibold mb-4">Contrôles en attente</h2>
-        <div id="notificationsList" class="space-y-3"></div>
-        <p id="noNotifications" class="text-gray-500 text-center py-4 hidden">Aucun contrôle en attente</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal Fiche Contrôle -->
-  <div id="modalControle" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 relative">
-      <button onclick="closeModal()" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">×</button>
-      <h2 class="text-xl font-bold mb-4">📅 <span id="modalDate"></span></h2>
-      <h3 class="text-lg font-semibold mb-4">👤 <span id="modalEmployeNom"></span></h3>
-
-      <div id="produitsList" class="space-y-4 mb-6"></div>
-
-      <div class="flex space-x-2">
-        <button onclick="validerControle(false)" class="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold">✅ Valider sans confirmation</button>
-        <button onclick="validerControle(true)" class="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">🔄 Valider et attendre confirmation</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="toast" class="fixed bottom-5 left-1/2 bg-black text-white px-4 py-2 rounded-lg text-sm hidden transform -translate-x-1/2 transition-opacity duration-300"></div>
-
 </body>
 </html>
