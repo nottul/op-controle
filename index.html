@@ -1,6 +1,9 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
+  <!-- Insérez ici votre URL de déploiement Google Apps Script -->
+  <!-- <script>var deployedURL = 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec';</script> -->
+
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>Contrôles - Ouest Palettes</title>
@@ -9,9 +12,9 @@
   <style>
     body { font-family: 'Inter', sans-serif; }
     .status-badge { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
-    .status-done { background-color: #10b981; }       /* vert ✅ */
-    .status-pending { background-color: #f59e0b; }   /* jaune 🟡 */
-    .status-new { background-color: #6b7280; }       /* gris ⚪ */
+    .status-done { background-color: #10b981; }
+    .status-pending { background-color: #f59e0b; }
+    .status-new { background-color: #6b7280; }
     .qty-btn { width: 30px; height: 30px; font-size: 18px; font-weight: bold; }
     #managerApp, #employeApp, #modalControle, #loadingSpinner { display: none; }
     .spinner {
@@ -30,20 +33,18 @@
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
-
   <!-- Écran de connexion -->
   <div id="loginScreen" class="flex flex-col items-center justify-center h-screen px-6">
     <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md text-center">
       <img src="https://i.ibb.co/6cRdDfrM/logo-ouest-palettes.png" alt="Ouest Palettes" class="w-40 h-12 mx-auto mb-4" />
       <p class="text-lg font-semibold text-blue-600 mb-6">Contrôles de Production</p>
-      
-      <!-- Formulaire de connexion - Conforme aux recommandations HTML pour l'authentification -->
+
+      <!-- Formulaire de connexion -->
       <form id="loginForm" class="space-y-4">
         <input id="email" type="text" placeholder="Identifiant" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="username" />
         <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="current-password" />
         <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Se connecter</button>
       </form>
-
       <p id="loginError" class="text-red-500 text-sm mt-2 hidden">Identifiant ou mot de passe incorrect</p>
     </div>
   </div>
@@ -56,14 +57,12 @@
         <button id="logoutBtn" class="text-sm text-red-500">Déconnexion</button>
       </div>
     </header>
-
     <div class="flex-1 p-4 space-y-6 overflow-y-auto">
       <div class="bg-white p-5 rounded-xl shadow">
         <h2 class="font-semibold mb-4">Mes Employés</h2>
         <div id="employesList" class="space-y-3"></div>
       </div>
     </div>
-
     <div id="offlineBar" class="hidden bg-yellow-500 text-white text-center py-2 text-sm">📴 Hors ligne. Les données seront envoyées dès que vous serez en ligne.</div>
   </div>
 
@@ -75,7 +74,6 @@
         <button id="logoutBtnEmploye" class="text-sm text-red-500">Déconnexion</button>
       </div>
     </header>
-
     <div class="flex-1 p-4 space-y-6 overflow-y-auto">
       <div class="bg-white p-5 rounded-xl shadow">
         <h2 class="font-semibold mb-4">Contrôles en attente</h2>
@@ -91,9 +89,7 @@
       <button id="closeModalBtn" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">×</button>
       <h2 class="text-xl font-bold mb-4">📅 <span id="modalDate"></span></h2>
       <h3 class="text-lg font-semibold mb-4">👤 <span id="modalEmployeNom"></span></h3>
-
       <div id="produitsList" class="space-y-4 mb-6"></div>
-
       <div class="flex space-x-2">
         <button id="validerSansConfirmationBtn" class="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold">✅ Valider sans confirmation</button>
         <button id="validerAvecConfirmationBtn" class="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">🔄 Valider et attendre confirmation</button>
@@ -102,7 +98,6 @@
   </div>
 
   <div id="toast" class="fixed bottom-5 left-1/2 bg-black text-white px-4 py-2 rounded-lg text-sm hidden transform -translate-x-1/2 transition-opacity duration-300"></div>
-
   <div id="loadingSpinner" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
     <div class="bg-white p-6 rounded-lg shadow-xl flex flex-col items-center">
       <div class="spinner"></div>
@@ -111,6 +106,9 @@
   </div>
 
   <script>
+    // Remplacez la valeur de deployedURL ci-dessous par votre URL de déploiement
+    var deployedURL = 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec';
+
     // Déclaration des variables globales
     let currentUser = null;
     let allUsers = [];
@@ -119,15 +117,14 @@
     let timers = {};
 
     document.addEventListener('DOMContentLoaded', function () {
-
-      // ---------- CONFIG ----------
+      // Configuration avec votre URL de déploiement
       const CONFIG = {
         managers: [
           { email: 'thierry', password: '1234', role: 'manager', equipe: 'Atelier Brest' },
           { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' }
         ],
-        urlScript: 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec',
-        delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures en ms
+        urlScript: deployedURL,
+        delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures en millisecondes
       };
 
       // Initialiser l'état depuis le localStorage
@@ -135,11 +132,12 @@
       notifications = JSON.parse(localStorage.getItem('notifications_palettes') || '[]');
       timers = JSON.parse(localStorage.getItem('timers_palettes') || '{}');
 
-      // ---------- UTILITAIRES ----------
+      // Fonction pour formater la date
       function formatDate(date) {
         return new Intl.DateTimeFormat('fr-FR').format(date);
       }
 
+      // Afficher un toast
       function showToast(msg) {
         const toast = document.getElementById('toast');
         toast.textContent = msg;
@@ -147,27 +145,29 @@
         setTimeout(() => toast.classList.add('hidden'), 3000);
       }
 
+      // Afficher ou masquer le spinner de chargement
       function showLoading(show) {
         document.getElementById('loadingSpinner').style.display = show ? 'flex' : 'none';
       }
 
+      // Vérifier le statut de connexion
       function checkOnlineStatus() {
         const bar = document.getElementById('offlineBar');
-        window.addEventListener('online', () => { 
-          bar.classList.add('hidden'); 
-          syncOfflineData(); 
+        window.addEventListener('online', () => {
+          bar.classList.add('hidden');
+          syncOfflineData();
         });
-        window.addEventListener('offline', () => { 
-          bar.classList.remove('hidden'); 
+        window.addEventListener('offline', () => {
+          bar.classList.remove('hidden');
         });
         if (!navigator.onLine) bar.classList.remove('hidden');
       }
 
-      // ---------- AUTH ----------
+      // Connexion
       async function login() {
         const email = document.getElementById('email').value.trim().toLowerCase();
         const password = document.getElementById('password').value;
-        
+
         document.getElementById('loginError').classList.add('hidden');
         showLoading(true);
 
@@ -177,7 +177,6 @@
             throw new Error(`HTTP error! status: ${response.status}`);
           }
           const employesData = await response.json();
-
           if (employesData && employesData.error) {
             throw new Error(employesData.message);
           }
@@ -217,6 +216,7 @@
         }
       }
 
+      // Déconnexion
       function logout() {
         currentUser = null;
         document.getElementById('loginScreen').classList.remove('hidden');
@@ -225,11 +225,10 @@
         document.getElementById('modalControle').classList.add('hidden');
       }
 
-      // ---------- MANAGER ----------
+      // Charger les employés pour le manager
       function loadEmployes() {
         const list = document.getElementById('employesList');
         list.innerHTML = '';
-
         const employes = allUsers.filter(u => u.role === 'employe' && u.manager === currentUser.email);
 
         if (employes.length === 0) {
@@ -259,7 +258,6 @@
           list.appendChild(item);
         });
 
-        // Ajouter les écouteurs d'événements aux boutons
         document.querySelectorAll('.open-controle-btn').forEach(btn => {
           btn.addEventListener('click', function() {
             openControle(this.getAttribute('data-email'));
@@ -267,13 +265,14 @@
         });
       }
 
+      // Ouvrir le contrôle
       function openControle(employeEmail) {
         const employe = allUsers.find(u => u.email === employeEmail);
         if (!employe) {
           showToast("Employé non trouvé");
           return;
         }
-        
+
         document.getElementById('modalEmployeNom').textContent = employe.email;
         document.getElementById('modalEmployeNom').setAttribute('data-email', employe.email);
 
@@ -304,7 +303,6 @@
         controlesEnCours[employeEmail].produits = produits;
         localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
 
-        // Ajouter les écouteurs d'événements aux boutons de quantité
         document.querySelectorAll('.qty-btn').forEach(btn => {
           btn.addEventListener('click', function() {
             const email = this.getAttribute('data-email');
@@ -317,10 +315,12 @@
         document.getElementById('modalControle').classList.remove('hidden');
       }
 
+      // Fermer le modal
       function closeModal() {
         document.getElementById('modalControle').classList.add('hidden');
       }
 
+      // Mettre à jour la quantité
       function updateQty(employeEmail, index, delta) {
         if (!controlesEnCours[employeEmail] || !controlesEnCours[employeEmail].produits) {
           controlesEnCours[employeEmail] = {
@@ -331,7 +331,7 @@
             ]
           };
         }
-        
+
         const produits = controlesEnCours[employeEmail].produits;
         produits[index].qté = Math.max(0, produits[index].qté + delta);
         document.getElementById(`qty-${employeEmail}-${index}`).textContent = produits[index].qté;
@@ -339,17 +339,17 @@
         localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
       }
 
+      // Valider le contrôle
       function validerControle(attenteConfirmation) {
         const employeEmail = document.getElementById('modalEmployeNom').getAttribute('data-email');
         const employe = allUsers.find(u => u.email === employeEmail);
-        
+
         if (!employe) {
           showToast("Erreur: Employé non trouvé");
           return;
         }
-        
-        const produits = controlesEnCours[employeEmail].produits;
 
+        const produits = controlesEnCours[employeEmail].produits;
         if (produits.every(p => p.qté === 0)) {
           showToast('Veuillez saisir au moins une quantité.');
           return;
@@ -385,43 +385,42 @@
         }
 
         sendToGoogleScript(controle);
-
         closeModal();
         loadEmployes();
         showToast(`✅ Contrôle enregistré pour ${employe.email}`);
       }
 
+      // Auto-valider le contrôle
       function autoValiderControle(notifId) {
         const index = notifications.findIndex(n => n.id === notifId);
         if (index !== -1) {
           notifications[index].statut = 'done';
           notifications[index].reponseEmploye = 'auto';
           localStorage.setItem('notifications_palettes', JSON.stringify(notifications));
-          
+
           if (timers[notifId]) {
             clearTimeout(timers[notifId]);
             delete timers[notifId];
             localStorage.setItem('timers_palettes', JSON.stringify(timers));
           }
-          
+
           sendToGoogleScript(notifications[index]);
         }
       }
 
-      // ---------- EMPLOYÉ ----------
+      // Charger les notifications pour l'employé
       function loadNotifications() {
         const list = document.getElementById('notificationsList');
         const noNotif = document.getElementById('noNotifications');
         list.innerHTML = '';
-
         const mesNotifs = notifications.filter(n => n.employe === currentUser.email && n.statut === 'pending');
 
         if (mesNotifs.length === 0) {
           noNotif.classList.remove('hidden');
           return;
         }
-        noNotif.classList.add('hidden');
 
+        noNotif.classList.add('hidden');
         mesNotifs.forEach(notif => {
           const item = document.createElement('div');
           item.className = 'border p-4 rounded-lg bg-blue-50';
@@ -441,7 +440,6 @@
           list.appendChild(item);
         });
 
-        // Ajouter les écouteurs d'événements aux boutons de réponse
         document.querySelectorAll('.reponse-btn').forEach(btn => {
           btn.addEventListener('click', function() {
             const notifId = this.getAttribute('data-id');
@@ -451,6 +449,7 @@
         });
       }
 
+      // Répondre au contrôle
       function repondreControle(notifId, reponse) {
         const index = notifications.findIndex(n => n.id === notifId);
         if (index !== -1) {
@@ -470,14 +469,12 @@
         }
       }
 
-      // ---------- ENVOI GOOGLE SCRIPT ----------
+      // Envoyer les données au script Google
       function sendToGoogleScript(data) {
         if (!navigator.onLine) {
-          // Stocker les données pour envoi ultérieur
           const pendingData = JSON.parse(localStorage.getItem('pendingData_palettes') || '[]');
           pendingData.push(data);
           localStorage.setItem('pendingData_palettes', JSON.stringify(pendingData));
-          
           showToast('⚠️ Mode hors ligne — sauvegardé localement');
           return;
         }
@@ -493,7 +490,6 @@
         })
         .catch(err => {
           console.error('Erreur:', err);
-          // Stocker les données pour réessayer plus tard
           const pendingData = JSON.parse(localStorage.getItem('pendingData_palettes') || '[]');
           pendingData.push(data);
           localStorage.setItem('pendingData_palettes', JSON.stringify(pendingData));
@@ -501,13 +497,12 @@
         });
       }
 
+      // Synchroniser les données hors ligne
       function syncOfflineData() {
         const pendingData = JSON.parse(localStorage.getItem('pendingData_palettes') || '[]');
         if (pendingData.length === 0) return;
-
         showToast('Synchronisation des données hors ligne...');
-        
-        // Envoyer les données une par une
+
         pendingData.forEach((data, index) => {
           fetch(CONFIG.urlScript, {
             method: 'POST',
@@ -517,7 +512,6 @@
           .then(async (response) => {
             let result = await response.json();
             if (result.status === 'success') {
-              // Supprimer la donnée envoyée avec succès
               pendingData.splice(index, 1);
               localStorage.setItem('pendingData_palettes', JSON.stringify(pendingData));
             }
@@ -528,7 +522,7 @@
         });
       }
 
-      // Attacher les écouteurs d'événements
+      // Écouteurs d'événements
       document.getElementById('loginForm').addEventListener('submit', function(e) {
         e.preventDefault();
         login();
@@ -537,13 +531,13 @@
       document.getElementById('logoutBtn').addEventListener('click', logout);
       document.getElementById('logoutBtnEmploye').addEventListener('click', logout);
       document.getElementById('closeModalBtn').addEventListener('click', closeModal);
-      
-      document.getElementById('validerSansConfirmationBtn').addEventListener('click', function() { 
-        validerControle(false); 
+
+      document.getElementById('validerSansConfirmationBtn').addEventListener('click', function() {
+        validerControle(false);
       });
-      
-      document.getElementById('validerAvecConfirmationBtn').addEventListener('click', function() { 
-        validerControle(true); 
+
+      document.getElementById('validerAvecConfirmationBtn').addEventListener('click', function() {
+        validerControle(true);
       });
 
       // Restaurer les timers au chargement
@@ -551,7 +545,7 @@
         const now = Date.now();
         const elapsed = now - timerInfo.startTime;
         const remaining = CONFIG.delaiAutoValidation - elapsed;
-        
+
         if (remaining > 0) {
           timers[notifId] = setTimeout(() => {
             autoValiderControle(notifId);
@@ -560,8 +554,7 @@
           autoValiderControle(notifId);
         }
       });
-
-    }); // Fin de DOMContentLoaded
+    });
   </script>
 </body>
 </html>
