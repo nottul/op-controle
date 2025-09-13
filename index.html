@@ -14,6 +14,19 @@
     .status-new { background-color: #6b7280; }       /* gris ⚪ */
     .qty-btn { width: 30px; height: 30px; font-size: 18px; font-weight: bold; }
     #managerApp, #employeApp, #modalControle, #loadingSpinner { display: none; }
+    .spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-top: 4px solid #3498db;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+      margin: 20px auto;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -90,27 +103,37 @@
 
   <div id="toast" class="fixed bottom-5 left-1/2 bg-black text-white px-4 py-2 rounded-lg text-sm hidden transform -translate-x-1/2 transition-opacity duration-300"></div>
 
+  <div id="loadingSpinner" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white p-6 rounded-lg shadow-xl flex flex-col items-center">
+      <div class="spinner"></div>
+      <p class="mt-4 text-gray-700">Chargement en cours...</p>
+    </div>
+  </div>
+
   <script>
+    // Déclaration des variables globales
+    let currentUser = null;
+    let allUsers = [];
+    let controlesEnCours = {};
+    let notifications = [];
+    let timers = {};
+
     document.addEventListener('DOMContentLoaded', function () {
 
       // ---------- CONFIG ----------
       const CONFIG = {
-        // Managers codés en dur (ou à charger depuis Sheet si tu veux)
         managers: [
           { email: 'thierry', password: '1234', role: 'manager', equipe: 'Atelier Brest' },
           { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' }
         ],
-        // *** URL DU SCRIPT GOOGLE APPS SCRIPT - CORRIGEE ***
         urlScript: 'https://script.google.com/macros/s/AKfycbzdJ93EYEMEWM1QJQtSdLk82pFDzfsKpwcIK3YrEa97oB0Xt3rUCebmd12UCXOuP1mU/exec',
         delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures en ms
       };
 
-      // ---------- ÉTAT ----------
-      let currentUser = null;
-      let allUsers = []; // Employés + Managers
-      let controlesEnCours = JSON.parse(localStorage.getItem('controlesEnCours_palettes') || '{}');
-      let notifications = JSON.parse(localStorage.getItem('notifications_palettes') || '[]');
-      let timers = JSON.parse(localStorage.getItem('timers_palettes') || '{}');
+      // Initialiser l'état depuis le localStorage
+      controlesEnCours = JSON.parse(localStorage.getItem('controlesEnCours_palettes') || '{}');
+      notifications = JSON.parse(localStorage.getItem('notifications_palettes') || '[]');
+      timers = JSON.parse(localStorage.getItem('timers_palettes') || '{}');
 
       // ---------- UTILITAIRES ----------
       function formatDate(date) {
@@ -124,22 +147,30 @@
         setTimeout(() => toast.classList.add('hidden'), 3000);
       }
 
+      function showLoading(show) {
+        document.getElementById('loadingSpinner').style.display = show ? 'flex' : 'none';
+      }
+
       function checkOnlineStatus() {
         const bar = document.getElementById('offlineBar');
-        window.addEventListener('online', () => { bar.classList.add('hidden'); syncOfflineData(); });
-        window.addEventListener('offline', () => { bar.classList.remove('hidden'); });
+        window.addEventListener('online', () => { 
+          bar.classList.add('hidden'); 
+          syncOfflineData(); 
+        });
+        window.addEventListener('offline', () => { 
+          bar.classList.remove('hidden'); 
+        });
         if (!navigator.onLine) bar.classList.remove('hidden');
       }
 
       // ---------- AUTH ----------
-       async function login() {
-        const email = document.getElementById('email').value.trim();
+      async function login() {
+        const email = document.getElementById('email').value.trim().toLowerCase();
         const password = document.getElementById('password').value;
+        
+        document.getElementById('loginError').classList.add('hidden');
+        showLoading(true);
 
-        console.log("Tentative de connexion pour:", email);
-        console.log("URL du script utilisée:", CONFIG.urlScript);
-
-        // Charger les employés depuis Google Sheet
         try {
           const response = await fetch(CONFIG.urlScript);
           if (!response.ok) {
@@ -147,28 +178,20 @@
           }
           const employesData = await response.json();
 
-          // Vérifier s'il y a une erreur dans la réponse
           if (employesData && employesData.error) {
             throw new Error(employesData.message);
           }
 
-          // Transformer les employés en utilisateurs
           const employes = Array.isArray(employesData) ? employesData.map(emp => ({
-            email: emp.Email || emp.email || emp.EMAIL || '',
-            password: '1234', // ou gérer via Sheet
+            email: (emp.Email || emp.email || emp.EMAIL || '').toLowerCase(),
+            password: '1234',
             role: 'employe',
             equipe: emp.Equipe || emp.equipe || emp['Equipe'] || '',
             manager: (emp.Equipe || emp.equipe || emp['Equipe']) === 'Atelier Brest' ? 'thierry' : 'johan'
           })) : [];
 
-          // Fusionner avec les managers
           allUsers = [...CONFIG.managers, ...employes];
-
-          console.log("Liste complète des utilisateurs:", allUsers);
-
-          // Trouver l'utilisateur
           const user = allUsers.find(u => u.email === email && u.password === password);
-          console.log("Utilisateur trouvé:", user);
 
           if (user) {
             currentUser = user;
@@ -188,10 +211,11 @@
           }
         } catch (err) {
           console.error("Erreur détaillée de chargement des employés :", err);
-          alert("Impossible de charger les employés depuis le Google Sheet. Vérifie la console pour plus de détails.");
+          showToast("Erreur de connexion. Vérifiez votre connexion internet.");
+        } finally {
+          showLoading(false);
         }
       }
-
 
       function logout() {
         currentUser = null;
@@ -208,12 +232,17 @@
 
         const employes = allUsers.filter(u => u.role === 'employe' && u.manager === currentUser.email);
 
+        if (employes.length === 0) {
+          list.innerHTML = '<p class="text-gray-500 text-center py-4">Aucun employé dans votre équipe</p>';
+          return;
+        }
+
         employes.forEach(emp => {
-          let statut = 'new'; // ⚪
+          let statut = 'new';
           if (controlesEnCours[emp.email]?.statut === 'pending') {
-            statut = 'pending'; // 🟡
+            statut = 'pending';
           } else if (controlesEnCours[emp.email]?.statut === 'done') {
-            statut = 'done'; // ✅
+            statut = 'done';
           }
 
           const item = document.createElement('div');
@@ -223,19 +252,31 @@
               <span class="status-badge status-${statut}"></span>
               <span class="font-medium">${emp.email.split('.')[0].charAt(0).toUpperCase() + emp.email.split('.')[0].slice(1)}</span>
             </div>
-            <button onclick="openControle('${emp.email}')" class="bg-blue-600 text-white px-3 py-1 rounded text-sm">
+            <button data-email="${emp.email}" class="open-controle-btn bg-blue-600 text-white px-3 py-1 rounded text-sm">
               ${statut === 'new' ? 'Contrôler' : 'Modifier'}
             </button>
           `;
           list.appendChild(item);
         });
+
+        // Ajouter les écouteurs d'événements aux boutons
+        document.querySelectorAll('.open-controle-btn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            openControle(this.getAttribute('data-email'));
+          });
+        });
       }
 
       function openControle(employeEmail) {
         const employe = allUsers.find(u => u.email === employeEmail);
+        if (!employe) {
+          showToast("Employé non trouvé");
+          return;
+        }
+        
         document.getElementById('modalEmployeNom').textContent = employe.email;
+        document.getElementById('modalEmployeNom').setAttribute('data-email', employe.email);
 
-        // Charger les produits depuis localStorage ou initialiser
         const produits = controlesEnCours[employe.email]?.produits || [
           { designation: 'Palette EURO neuve', qté: 0 },
           { designation: 'Palette réparée H1', qté: 0 },
@@ -251,9 +292,9 @@
           div.innerHTML = `
             <span>${prod.designation}</span>
             <div class="flex items-center space-x-2">
-              <button class="qty-btn bg-gray-300 rounded" onclick="updateQty('${employeEmail}', ${index}, -1)">-</button>
+              <button class="qty-btn bg-gray-300 rounded" data-email="${employeEmail}" data-index="${index}" data-delta="-1">-</button>
               <span id="qty-${employeEmail}-${index}" class="font-bold w-12 text-center">${prod.qté}</span>
-              <button class="qty-btn bg-gray-300 rounded" onclick="updateQty('${employeEmail}', ${index}, 1)">+</button>
+              <button class="qty-btn bg-gray-300 rounded" data-email="${employeEmail}" data-index="${index}" data-delta="1">+</button>
             </div>
           `;
           produitsList.appendChild(div);
@@ -261,6 +302,17 @@
 
         controlesEnCours[employeEmail] = controlesEnCours[employeEmail] || {};
         controlesEnCours[employeEmail].produits = produits;
+        localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
+
+        // Ajouter les écouteurs d'événements aux boutons de quantité
+        document.querySelectorAll('.qty-btn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const email = this.getAttribute('data-email');
+            const index = parseInt(this.getAttribute('data-index'));
+            const delta = parseInt(this.getAttribute('data-delta'));
+            updateQty(email, index, delta);
+          });
+        });
 
         document.getElementById('modalControle').classList.remove('hidden');
       }
@@ -270,6 +322,16 @@
       }
 
       function updateQty(employeEmail, index, delta) {
+        if (!controlesEnCours[employeEmail] || !controlesEnCours[employeEmail].produits) {
+          controlesEnCours[employeEmail] = {
+            produits: [
+              { designation: 'Palette EURO neuve', qté: 0 },
+              { designation: 'Palette réparée H1', qté: 0 },
+              { designation: 'Palette perdue', qté: 0 }
+            ]
+          };
+        }
+        
         const produits = controlesEnCours[employeEmail].produits;
         produits[index].qté = Math.max(0, produits[index].qté + delta);
         document.getElementById(`qty-${employeEmail}-${index}`).textContent = produits[index].qté;
@@ -278,12 +340,18 @@
       }
 
       function validerControle(attenteConfirmation) {
-        const employeNom = document.getElementById('modalEmployeNom').textContent;
-        const employe = allUsers.find(u => u.email.includes(employeNom.toLowerCase()));
-        const produits = controlesEnCours[employe.email].produits;
+        const employeEmail = document.getElementById('modalEmployeNom').getAttribute('data-email');
+        const employe = allUsers.find(u => u.email === employeEmail);
+        
+        if (!employe) {
+          showToast("Erreur: Employé non trouvé");
+          return;
+        }
+        
+        const produits = controlesEnCours[employeEmail].produits;
 
         if (produits.every(p => p.qté === 0)) {
-          alert('Veuillez saisir au moins une quantité.');
+          showToast('Veuillez saisir au moins une quantité.');
           return;
         }
 
@@ -320,7 +388,7 @@
 
         closeModal();
         loadEmployes();
-        showToast(`✅ Contrôle enregistré pour ${employeNom}`);
+        showToast(`✅ Contrôle enregistré pour ${employe.email}`);
       }
 
       function autoValiderControle(notifId) {
@@ -329,8 +397,14 @@
           notifications[index].statut = 'done';
           notifications[index].reponseEmploye = 'auto';
           localStorage.setItem('notifications_palettes', JSON.stringify(notifications));
-          delete timers[notifId];
-          localStorage.setItem('timers_palettes', JSON.stringify(timers));
+          
+          if (timers[notifId]) {
+            clearTimeout(timers[notifId]);
+            delete timers[notifId];
+            localStorage.setItem('timers_palettes', JSON.stringify(timers));
+          }
+          
+          sendToGoogleScript(notifications[index]);
         }
       }
 
@@ -360,11 +434,20 @@
             <p class="text-sm text-gray-500">Contrôle du ${formatDate(new Date(notif.date))} par ${notif.manager}</p>
             ${produitsHtml}
             <div class="flex space-x-2 mt-4">
-              <button onclick="repondreControle('${notif.id}', 'valide')" class="flex-1 bg-green-600 text-white py-2 rounded text-sm">✅ Je valide</button>
-              <button onclick="repondreControle('${notif.id}', 'recontrole')" class="flex-1 bg-yellow-600 text-white py-2 rounded text-sm">🔄 Demander recontrôle</button>
+              <button data-id="${notif.id}" data-response="valide" class="reponse-btn flex-1 bg-green-600 text-white py-2 rounded text-sm">✅ Je valide</button>
+              <button data-id="${notif.id}" data-response="recontrole" class="reponse-btn flex-1 bg-yellow-600 text-white py-2 rounded text-sm">🔄 Demander recontrôle</button>
             </div>
           `;
           list.appendChild(item);
+        });
+
+        // Ajouter les écouteurs d'événements aux boutons de réponse
+        document.querySelectorAll('.reponse-btn').forEach(btn => {
+          btn.addEventListener('click', function() {
+            const notifId = this.getAttribute('data-id');
+            const reponse = this.getAttribute('data-response');
+            repondreControle(notifId, reponse);
+          });
         });
       }
 
@@ -390,6 +473,11 @@
       // ---------- ENVOI GOOGLE SCRIPT ----------
       function sendToGoogleScript(data) {
         if (!navigator.onLine) {
+          // Stocker les données pour envoi ultérieur
+          const pendingData = JSON.parse(localStorage.getItem('pendingData_palettes') || '[]');
+          pendingData.push(data);
+          localStorage.setItem('pendingData_palettes', JSON.stringify(pendingData));
+          
           showToast('⚠️ Mode hors ligne — sauvegardé localement');
           return;
         }
@@ -405,12 +493,39 @@
         })
         .catch(err => {
           console.error('Erreur:', err);
+          // Stocker les données pour réessayer plus tard
+          const pendingData = JSON.parse(localStorage.getItem('pendingData_palettes') || '[]');
+          pendingData.push(data);
+          localStorage.setItem('pendingData_palettes', JSON.stringify(pendingData));
           showToast('⚠️ Erreur d’envoi — sauvegardé localement');
         });
       }
 
       function syncOfflineData() {
-        // À implémenter si besoin de ré-envoyer les données non envoyées
+        const pendingData = JSON.parse(localStorage.getItem('pendingData_palettes') || '[]');
+        if (pendingData.length === 0) return;
+
+        showToast('Synchronisation des données hors ligne...');
+        
+        // Envoyer les données une par une
+        pendingData.forEach((data, index) => {
+          fetch(CONFIG.urlScript, {
+            method: 'POST',
+            body: JSON.stringify(data),
+            headers: { 'Content-Type': 'text/plain' }
+          })
+          .then(async (response) => {
+            let result = await response.json();
+            if (result.status === 'success') {
+              // Supprimer la donnée envoyée avec succès
+              pendingData.splice(index, 1);
+              localStorage.setItem('pendingData_palettes', JSON.stringify(pendingData));
+            }
+          })
+          .catch(err => {
+            console.error('Erreur lors de la synchronisation:', err);
+          });
+        });
       }
 
       // Attacher les écouteurs d'événements
@@ -423,9 +538,28 @@
       document.getElementById('logoutBtnEmploye').addEventListener('click', logout);
       document.getElementById('closeModalBtn').addEventListener('click', closeModal);
       
-      // Les écouteurs pour les boutons dans le modal sont ajoutés dynamiquement dans openControle
-      document.getElementById('validerSansConfirmationBtn').addEventListener('click', function() { validerControle(false); });
-      document.getElementById('validerAvecConfirmationBtn').addEventListener('click', function() { validerControle(true); });
+      document.getElementById('validerSansConfirmationBtn').addEventListener('click', function() { 
+        validerControle(false); 
+      });
+      
+      document.getElementById('validerAvecConfirmationBtn').addEventListener('click', function() { 
+        validerControle(true); 
+      });
+
+      // Restaurer les timers au chargement
+      Object.entries(timers).forEach(([notifId, timerInfo]) => {
+        const now = Date.now();
+        const elapsed = now - timerInfo.startTime;
+        const remaining = CONFIG.delaiAutoValidation - elapsed;
+        
+        if (remaining > 0) {
+          timers[notifId] = setTimeout(() => {
+            autoValiderControle(notifId);
+          }, remaining);
+        } else {
+          autoValiderControle(notifId);
+        }
+      });
 
     }); // Fin de DOMContentLoaded
   </script>
