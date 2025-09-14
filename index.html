@@ -103,8 +103,8 @@
   </div>
 
   <script>
-    // 🔧 URL CORRIGÉE : copiez-coller exactement celle que vous avez déployée
-    var deployedURL = 'var deployedURL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://script.google.com/macros/s/AKfycbze6BjC81vGYQQnnP-w_0Fh79dws85jNc5cAnBR0ed_pg8A-kOwbpNuWhPY1L38X4jX/exec');';
+    // 🔧 URL CORRIGÉE + PROXY CORS POUR CONTOURNER LE BLOCAGE DE CORS
+    var deployedURL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://script.google.com/macros/s/AKfycbxWEfPlq6KBLE5hwk86e3O6xoaG3m1J8bIV9eu9IlS0AZOqYW2wpTBKJ84TBbH-DORPPw/exec');
 
     let currentUser = null;
     let allUsers = [];
@@ -122,7 +122,6 @@
         delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures
       };
 
-      // Charger les données sauvegardées
       controlesEnCours = JSON.parse(localStorage.getItem('controlesEnCours_palettes') || '{}');
       notifications = JSON.parse(localStorage.getItem('notifications_palettes') || '[]');
       timers = JSON.parse(localStorage.getItem('timers_palettes') || '{}');
@@ -171,7 +170,6 @@
             throw new Error("Données invalides reçues du script");
           }
 
-          // Construire la liste complète des utilisateurs
           allUsers = [
             ...CONFIG.managers,
             ...employesData.map(emp => ({
@@ -203,7 +201,7 @@
           }
         } catch (err) {
           console.error("Erreur de connexion :", err);
-          showToast("Impossible de charger les employés. Vérifiez votre connexion ou l'URL du script.");
+          showToast("Impossible de charger les employés. Vérifiez votre connexion internet et le script.");
         } finally {
           showLoading(false);
         }
@@ -237,7 +235,7 @@
           item.innerHTML = `
             <div>
               <span class="status-badge status-${statut}"></span>
-              <span class="font-medium">${emp.email.split('.')[0].charAt(0).toUpperCase() + emp.email.split('.')[0].slice(1)}</span>
+              <span class="font-medium">${emp.Prénom || emp.email.split('.')[0].charAt(0).toUpperCase() + emp.email.split('.')[0].slice(1)}</span>
             </div>
             <button data-email="${emp.email}" class="open-controle-btn bg-blue-600 text-white px-3 py-1 rounded text-sm">
               ${statut === 'new' ? 'Contrôler' : 'Modifier'}
@@ -260,7 +258,7 @@
           return;
         }
 
-        document.getElementById('modalEmployeNom').textContent = employe.email;
+        document.getElementById('modalEmployeNom').textContent = `${employe.Prénom || ''} ${employe.Nom || ''}`.trim() || employe.email;
         document.getElementById('modalEmployeNom').setAttribute('data-email', employe.email);
 
         const produits = controlesEnCours[employeEmail]?.produits || [
@@ -494,7 +492,6 @@
         });
       }
 
-      // Restaurer les timers au chargement
       Object.entries(timers).forEach(([notifId, timerInfo]) => {
         const now = Date.now();
         const elapsed = now - timerInfo.startTime;
@@ -509,7 +506,6 @@
         }
       });
 
-      // Écouteurs d'événements
       document.getElementById('loginForm').addEventListener('submit', function(e) {
         e.preventDefault();
         login();
