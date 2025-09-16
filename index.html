@@ -177,8 +177,8 @@
               password: '1234',
               role: 'employe',
               equipe: emp.Equipe || emp.equipe || '',
-              manager: (emp.Equipe || emp.equipe || '').includes('Brest') ? 'thierry' : 'johan'
-            }))
+              manager: (emp.Equipe || emp.equipe || '').toString().includes('1') ? 'thierry' : 'johan',
+
           ];
 
           const user = allUsers.find(u => u.email === email && u.password === password);
