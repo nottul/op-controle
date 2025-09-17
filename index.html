@@ -146,6 +146,8 @@
           const response = await fetch(deployedURL);
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const employesData = await response.json();
+          console.log("Données reçues du script :", employesData);
+
           if (!Array.isArray(employesData)) {
             throw new Error("Données invalides reçues du script");
           }
@@ -161,7 +163,12 @@
               Nom: emp.Nom || ''
             }))
           ];
+
+          console.log("Utilisateurs chargés :", allUsers);
+
           const user = allUsers.find(u => u.email === email && u.password === password);
+          console.log("Utilisateur trouvé :", user);
+
           if (user) {
             currentUser = user;
             document.getElementById('loginScreen').classList.add('hidden');
@@ -197,8 +204,7 @@
         list.innerHTML = '';
         const employes = allUsers.filter(u => u.role === 'employe' && u.manager === currentUser.email);
 
-        // Ligne ajoutée pour vérifier les employés dans la console
-        console.log(employes);
+        console.log("Employés filtrés :", employes);
 
         if (employes.length === 0) {
           list.innerHTML = '<p class="text-gray-500 text-center py-4">Aucun employé dans votre équipe</p>';
