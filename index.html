@@ -133,9 +133,11 @@
     async function loadProduits(idEmploye) {
       showLoading(true);
       try {
+        console.log(`Chargement des produits pour l'employé ID: ${idEmploye}`);
         const response = await fetch(`${CONFIG.deployedURL}?action=getProduits&idEmploye=${idEmploye}`);
         if (!response.ok) throw new Error("Erreur réseau");
         produits = await response.json();
+        console.log('Produits reçus:', produits);
       } catch (error) {
         console.error("Erreur:", error);
         produits = [];
@@ -151,17 +153,25 @@
       document.getElementById('modalEmployeNom').textContent = `${employe.prenom} ${employe.nom}`;
       document.getElementById('controleModal').classList.remove('hidden');
 
+      console.log('ID Employé:', employe.ID_Employé);
+
       // Charger les produits depuis le Google Sheet
       produits = await loadProduits(employe.ID_Employé);
 
       const produitsList = document.getElementById('produitsList');
       produitsList.innerHTML = '';
 
+      if (produits.length === 0) {
+        produitsList.innerHTML = '<p class="text-gray-500">Aucun produit trouvé pour cet employé.</p>';
+        return;
+      }
+
       produits.forEach((produit, index) => {
+        console.log('Produit:', produit);
         const produitElement = document.createElement('div');
         produitElement.className = 'flex items-center justify-between p-3 bg-gray-50 rounded';
         produitElement.innerHTML = `
-          <span>${produit.Désignation} (Prévu: ${produit.Qté_Prévue})</span>
+          <span>${produit.Code_Produit || 'Non défini'} - ${produit.Désignation || 'Non défini'} (Prévu: ${produit.Qté_Prévue || 'Non défini'})</span>
           <div class="flex items-center space-x-2">
             <button class="qty-btn minus-btn" data-index="${index}">-</button>
             <span class="qte-display w-8 text-center">0</span>
@@ -255,7 +265,7 @@
             <span>${emp.prenom} ${emp.nom}</span>
           </div>
           <button class="controle-btn bg-blue-500 text-white px-3 py-1 rounded text-sm" data-email="${emp.email}">
-            ${statut === 'new' ? 'Contrôler' : 'Modifier'}
+            Contrôler
           </button>
         `;
         listElement.appendChild(employeeItem);
