@@ -142,8 +142,21 @@
         console.log(`Chargement des produits pour l'employé ID: ${idEmploye}`);
         const response = await fetch(`${CONFIG.deployedURL}?action=getProduits&idEmploye=${idEmploye}`);
         if (!response.ok) throw new Error("Erreur réseau");
-        produits = await response.json();
-        console.log('Produits reçus:', produits);
+
+        const produits = await response.json();
+        console.log('Réponse brute:', produits);
+
+        if (produits.status === 'error') {
+          console.error('Erreur dans la réponse:', produits.message);
+          return [];
+        }
+
+        if (!Array.isArray(produits)) {
+          console.error('Format de réponse inattendu:', produits);
+          return [];
+        }
+
+        console.log('Produits parsés:', JSON.parse(JSON.stringify(produits)));
         return produits;
       } catch (error) {
         console.error("Erreur:", error);
@@ -162,6 +175,7 @@
       console.log('ID Employé:', employe.ID_Employé);
 
       produits = await loadProduits(employe.ID_Employé);
+      console.log('Produits reçus:', JSON.parse(JSON.stringify(produits)));
 
       const produitsList = document.getElementById('produitsList');
       produitsList.innerHTML = '';
@@ -172,15 +186,23 @@
         return;
       }
 
+      // Vérification détaillée de chaque produit
       produits.forEach((produit, index) => {
-        console.log('Produit à afficher:', produit);
+        console.log('Produit:', index, JSON.parse(JSON.stringify(produit)));
+        console.log('Type de produit:', typeof produit);
+        console.log('Clés du produit:', Object.keys(produit));
+
         const produitElement = document.createElement('div');
         produitElement.className = 'flex items-center justify-between p-3 bg-gray-50 rounded';
+
+        // Vérification et affichage sécurisé des propriétés
+        const codeProduit = produit.Code_Produit ? produit.Code_Produit : 'Non défini';
+        const designation = produit.Désignation ? produit.Désignation : 'Produit non défini';
+        const qtePrevue = produit['Qté_Prévue'] !== undefined ? produit['Qté_Prévue'] : 'Non définie';
+
         produitElement.innerHTML = `
           <span class="font-medium">
-            ${produit.Code_Produit ? produit.Code_Produit + ' - ' : ''}
-            ${produit.Désignation || 'Produit non défini'}
-            ${produit.Qté_Prévue !== undefined ? ` (Prévu: ${produit.Qté_Prévue})` : ''}
+            ${codeProduit} - ${designation} (Prévu: ${qtePrevue})
           </span>
           <div class="flex items-center space-x-2">
             <button class="qty-btn minus-btn" data-index="${index}">-</button>
