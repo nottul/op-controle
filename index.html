@@ -30,6 +30,18 @@
       height: 40px;
       animation: spin 1s linear infinite;
     }
+    .qty-btn {
+      width: 30px;
+      height: 30px;
+      font-size: 18px;
+      font-weight: bold;
+      background-color: #e5e7eb;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body class="bg-gray-50">
@@ -71,6 +83,23 @@
     </main>
   </div>
 
+  <!-- Modal de contrôle -->
+  <div id="controleModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-xl font-bold">Contrôle pour <span id="modalEmployeNom"></span></h2>
+        <button id="closeModalBtn" class="text-gray-500 text-2xl">&times;</button>
+      </div>
+
+      <div id="produitsList" class="space-y-4 mb-6"></div>
+
+      <div class="flex space-x-2">
+        <button id="validerSansConfirmationBtn" class="flex-1 bg-green-600 text-white py-2 rounded">✅ Valider sans confirmation</button>
+        <button id="validerAvecConfirmationBtn" class="flex-1 bg-blue-600 text-white py-2 rounded">🔄 Valider avec confirmation</button>
+      </div>
+    </div>
+  </div>
+
   <script>
     // Configuration
     const CONFIG = {
@@ -78,12 +107,19 @@
       managers: [
         { email: 'thierry', password: '1234', role: 'manager' },
         { email: 'johan', password: '1234', role: 'manager' }
+      ],
+      produits: [
+        { designation: 'Palette EURO neuve', qte: 0 },
+        { designation: 'Palette réparée H1', qte: 0 },
+        { designation: 'Palette perdue', qte: 0 }
       ]
     };
 
     // État de l'application
     let currentUser = null;
     let allUsers = [];
+    let currentEmploye = null;
+    let controles = {};
 
     // Fonctions utilitaires
     function showLoading(show) {
@@ -100,59 +136,94 @@
       return new Intl.DateTimeFormat('fr-FR').format(date);
     }
 
-    // Gestion de la connexion
-    async function login(event) {
-      event.preventDefault();
-      showLoading(true);
-      showError('');
+    // Ouvrir la modale de contrôle
+    function openControleModal(employe) {
+      currentEmploye = employe;
+      document.getElementById('modalEmployeNom').textContent = `${employe.prenom} ${employe.nom}`;
+      document.getElementById('controleModal').classList.remove('hidden');
 
-      const email = document.getElementById('email').value.trim().toLowerCase();
-      const password = document.getElementById('password').value;
+      // Initialiser les produits
+      const produitsList = document.getElementById('produitsList');
+      produitsList.innerHTML = '';
 
-      try {
-        // Récupérer les données des employés
-        const response = await fetch(CONFIG.deployedURL);
-        if (!response.ok) throw new Error('Erreur réseau');
+      // Si on a déjà un contrôle en cours pour cet employé, utiliser ces valeurs
+      const controleExistant = controles[employe.email] || { produits: [...CONFIG.produits] };
 
-        const employesData = await response.json();
-        if (!Array.isArray(employesData)) throw new Error('Données invalides');
+      controleExistant.produits.forEach((produit, index) => {
+        const produitElement = document.createElement('div');
+        produitElement.className = 'flex items-center justify-between p-3 bg-gray-50 rounded';
 
-        // Créer la liste de tous les utilisateurs
-        allUsers = [
-          ...CONFIG.managers,
-          ...employesData.map(emp => ({
-            email: (emp.Email || '').toLowerCase(),
-            password: '1234',
-            role: 'employe',
-            nom: emp.Nom || '',
-            prenom: emp.Prénom || '',
-            equipe: emp.Equipe || '',
-            manager: String(emp.Equipe).includes('1') ? 'thierry' : 'johan'
-          }))
-        ];
+        produitElement.innerHTML = `
+          <span>${produit.designation}</span>
+          <div class="flex items-center space-x-2">
+            <button class="qty-btn minus-btn" data-index="${index}">-</button>
+            <span class="qte-display w-8 text-center">${produit.qte}</span>
+            <button class="qty-btn plus-btn" data-index="${index}">+</button>
+          </div>
+        `;
 
-        // Vérifier les identifiants
-        const user = allUsers.find(u => u.email === email && u.password === password);
-        if (!user) {
-          showError('Identifiant ou mot de passe incorrect');
-          return;
-        }
+        produitsList.appendChild(produitElement);
+      });
 
-        // Connexion réussie
-        currentUser = user;
-        document.getElementById('loginScreen').classList.add('hidden');
-        document.getElementById('managerApp').classList.remove('hidden');
-        document.getElementById('currentDate').textContent = formatDate(new Date());
+      // Ajouter les écouteurs d'événements pour les boutons +/-
+      document.querySelectorAll('.minus-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          updateQte(btn.dataset.index, -1);
+        });
+      });
 
-        // Charger les employés
-        loadEmployes();
+      document.querySelectorAll('.plus-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          updateQte(btn.dataset.index, 1);
+        });
+      });
+    }
 
-      } catch (error) {
-        console.error('Erreur:', error);
-        showError('Erreur de connexion. Vérifiez votre connexion internet.');
-      } finally {
-        showLoading(false);
+    // Mettre à jour la quantité
+    function updateQte(index, delta) {
+      if (!controles[currentEmploye.email]) {
+        controles[currentEmploye.email] = { produits: [...CONFIG.produits] };
       }
+
+      const qteElement = document.querySelector(`.qte-display`);
+      const qteElements = document.querySelectorAll('.qte-display');
+      const currentQte = parseInt(qteElements[index].textContent);
+      const newQte = Math.max(0, currentQte + delta);
+
+      controles[currentEmploye.email].produits[index].qte = newQte;
+      qteElements[index].textContent = newQte;
+    }
+
+    // Fermer la modale
+    function closeControleModal() {
+      document.getElementById('controleModal').classList.add('hidden');
+    }
+
+    // Valider le contrôle
+    function validerControle(avecConfirmation) {
+      if (!currentEmploye) return;
+
+      // Vérifier qu'au moins une quantité est > 0
+      const aAuMoinsUneQte = controles[currentEmploye.email].produits.some(p => p.qte > 0);
+      if (!aAuMoinsUneQte) {
+        alert('Veuillez saisir au moins une quantité');
+        return;
+      }
+
+      // Enregistrer le contrôle
+      controles[currentEmploye.email] = {
+        ...controles[currentEmploye.email],
+        date: new Date().toISOString(),
+        statut: avecConfirmation ? 'en_attente' : 'valide',
+        manager: currentUser.email
+      };
+
+      console.log('Contrôle enregistré:', controles[currentEmploye.email]);
+      alert(`Contrôle ${avecConfirmation ? 'en attente de validation' : 'validé'} pour ${currentEmploye.prenom}`);
+
+      // Fermer la modale et recharger la liste
+      closeControleModal();
+      loadEmployes();
     }
 
     // Charger la liste des employés
@@ -173,19 +244,77 @@
         const employeeItem = document.createElement('div');
         employeeItem.className = 'p-3 border rounded-lg bg-white flex justify-between items-center';
 
-        const status = 'new'; // Statut par défaut
+        const statut = controles[emp.email] ? 'pending' : 'new';
         employeeItem.innerHTML = `
           <div>
-            <span class="status-badge status-${status}"></span>
+            <span class="status-badge status-${statut}"></span>
             <span>${emp.prenom} ${emp.nom}</span>
           </div>
-          <button class="bg-blue-500 text-white px-3 py-1 rounded text-sm">
-            Contrôler
+          <button class="controle-btn bg-blue-500 text-white px-3 py-1 rounded text-sm" data-email="${emp.email}">
+            ${statut === 'new' ? 'Contrôler' : 'Modifier'}
           </button>
         `;
 
         listElement.appendChild(employeeItem);
       });
+
+      // Ajouter les écouteurs d'événements aux boutons Contrôler
+      document.querySelectorAll('.controle-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const employeEmail = btn.dataset.email;
+          const employe = allUsers.find(u => u.email === employeEmail);
+          openControleModal(employe);
+        });
+      });
+    }
+
+    // Gestion de la connexion
+    async function login(event) {
+      event.preventDefault();
+      showLoading(true);
+      showError('');
+
+      const email = document.getElementById('email').value.trim().toLowerCase();
+      const password = document.getElementById('password').value;
+
+      try {
+        const response = await fetch(CONFIG.deployedURL);
+        if (!response.ok) throw new Error('Erreur réseau');
+
+        const employesData = await response.json();
+        if (!Array.isArray(employesData)) throw new Error('Données invalides');
+
+        allUsers = [
+          ...CONFIG.managers,
+          ...employesData.map(emp => ({
+            email: (emp.Email || '').toLowerCase(),
+            password: '1234',
+            role: 'employe',
+            nom: emp.Nom || '',
+            prenom: emp.Prénom || '',
+            equipe: emp.Equipe || '',
+            manager: String(emp.Equipe).includes('1') ? 'thierry' : 'johan'
+          }))
+        ];
+
+        const user = allUsers.find(u => u.email === email && u.password === password);
+        if (!user) {
+          showError('Identifiant ou mot de passe incorrect');
+          return;
+        }
+
+        currentUser = user;
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('managerApp').classList.remove('hidden');
+        document.getElementById('currentDate').textContent = formatDate(new Date());
+        loadEmployes();
+
+      } catch (error) {
+        console.error('Erreur:', error);
+        showError('Erreur de connexion. Vérifiez votre connexion internet.');
+      } finally {
+        showLoading(false);
+      }
     }
 
     // Déconnexion
@@ -199,6 +328,9 @@
     document.addEventListener('DOMContentLoaded', () => {
       document.getElementById('loginForm').addEventListener('submit', login);
       document.getElementById('logoutBtn').addEventListener('click', logout);
+      document.getElementById('closeModalBtn').addEventListener('click', closeControleModal);
+      document.getElementById('validerSansConfirmationBtn').addEventListener('click', () => validerControle(false));
+      document.getElementById('validerAvecConfirmationBtn').addEventListener('click', () => validerControle(true));
     });
   </script>
 </body>
