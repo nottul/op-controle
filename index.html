@@ -42,6 +42,10 @@
       justify-content: center;
       cursor: pointer;
     }
+    .modal-content {
+      max-height: 80vh;
+      overflow-y: auto;
+    }
   </style>
 </head>
 <body class="bg-gray-50">
@@ -84,15 +88,17 @@
 
   <!-- Modal de contrôle -->
   <div id="controleModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
-      <div class="flex justify-between items-center mb-4">
-        <h2 class="text-xl font-bold">Contrôle pour <span id="modalEmployeNom"></span></h2>
-        <button id="closeModalBtn" class="text-gray-500 text-2xl">&times;</button>
-      </div>
-      <div id="produitsList" class="space-y-4 mb-6 max-h-96 overflow-y-auto"></div>
-      <div class="flex space-x-2">
-        <button id="validerSansConfirmationBtn" class="flex-1 bg-green-600 text-white py-2 rounded">✅ Valider sans confirmation</button>
-        <button id="validerAvecConfirmationBtn" class="flex-1 bg-blue-600 text-white py-2 rounded">🔄 Valider avec confirmation</button>
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-md">
+      <div class="p-6">
+        <div class="flex justify-between items-center mb-4">
+          <h2 class="text-xl font-bold">Contrôle pour <span id="modalEmployeNom"></span></h2>
+          <button id="closeModalBtn" class="text-gray-500 text-2xl">&times;</button>
+        </div>
+        <div id="produitsList" class="space-y-4 mb-6 modal-content"></div>
+        <div class="flex space-x-2">
+          <button id="validerSansConfirmationBtn" class="flex-1 bg-green-600 text-white py-2 rounded">✅ Valider sans confirmation</button>
+          <button id="validerAvecConfirmationBtn" class="flex-1 bg-blue-600 text-white py-2 rounded">🔄 Valider avec confirmation</button>
+        </div>
       </div>
     </div>
   </div>
@@ -138,13 +144,13 @@
         if (!response.ok) throw new Error("Erreur réseau");
         produits = await response.json();
         console.log('Produits reçus:', produits);
+        return produits;
       } catch (error) {
         console.error("Erreur:", error);
-        produits = [];
+        return [];
       } finally {
         showLoading(false);
       }
-      return produits;
     }
 
     // Ouvrir la modale de contrôle
@@ -155,26 +161,26 @@
 
       console.log('ID Employé:', employe.ID_Employé);
 
-      // Charger les produits depuis le Google Sheet
       produits = await loadProduits(employe.ID_Employé);
 
       const produitsList = document.getElementById('produitsList');
       produitsList.innerHTML = '';
 
       if (!produits || produits.length === 0) {
-        produitsList.innerHTML = '<p class="text-gray-500">Aucun produit trouvé pour cet employé.</p>';
+        console.log('Aucun produit trouvé pour cet employé.');
+        produitsList.innerHTML = '<p class="text-gray-500 p-4 text-center">Aucun produit trouvé pour cet employé.</p>';
         return;
       }
 
       produits.forEach((produit, index) => {
-        console.log('Produit:', produit);
+        console.log('Produit à afficher:', produit);
         const produitElement = document.createElement('div');
         produitElement.className = 'flex items-center justify-between p-3 bg-gray-50 rounded';
         produitElement.innerHTML = `
           <span class="font-medium">
             ${produit.Code_Produit ? produit.Code_Produit + ' - ' : ''}
             ${produit.Désignation || 'Produit non défini'}
-            ${produit.Qté_Prévue !== undefined ? `(Prévu: ${produit.Qté_Prévue})` : ''}
+            ${produit.Qté_Prévue !== undefined ? ` (Prévu: ${produit.Qté_Prévue})` : ''}
           </span>
           <div class="flex items-center space-x-2">
             <button class="qty-btn minus-btn" data-index="${index}">-</button>
