@@ -74,7 +74,6 @@
         <button id="logoutBtn" class="text-red-500">Déconnexion</button>
       </div>
     </header>
-
     <main class="flex-1 p-4 overflow-auto">
       <div class="bg-white p-4 rounded-lg shadow">
         <h2 class="font-semibold mb-4">Mes Employés</h2>
@@ -90,9 +89,7 @@
         <h2 class="text-xl font-bold">Contrôle pour <span id="modalEmployeNom"></span></h2>
         <button id="closeModalBtn" class="text-gray-500 text-2xl">&times;</button>
       </div>
-
       <div id="produitsList" class="space-y-4 mb-6"></div>
-
       <div class="flex space-x-2">
         <button id="validerSansConfirmationBtn" class="flex-1 bg-green-600 text-white py-2 rounded">✅ Valider sans confirmation</button>
         <button id="validerAvecConfirmationBtn" class="flex-1 bg-blue-600 text-white py-2 rounded">🔄 Valider avec confirmation</button>
@@ -107,11 +104,6 @@
       managers: [
         { email: 'thierry', password: '1234', role: 'manager' },
         { email: 'johan', password: '1234', role: 'manager' }
-      ],
-      produits: [
-        { designation: 'Palette EURO neuve', qte: 0 },
-        { designation: 'Palette réparée H1', qte: 0 },
-        { designation: 'Palette perdue', qte: 0 }
       ]
     };
 
@@ -120,6 +112,7 @@
     let allUsers = [];
     let currentEmploye = null;
     let controles = {};
+    let produits = [];
 
     // Fonctions utilitaires
     function showLoading(show) {
@@ -136,61 +129,62 @@
       return new Intl.DateTimeFormat('fr-FR').format(date);
     }
 
+    // Charger les produits depuis le Google Sheet
+    async function loadProduits(idEmploye) {
+      showLoading(true);
+      try {
+        const response = await fetch(`${CONFIG.deployedURL}?action=getProduits&idEmploye=${idEmploye}`);
+        if (!response.ok) throw new Error("Erreur réseau");
+        produits = await response.json();
+      } catch (error) {
+        console.error("Erreur:", error);
+        produits = [];
+      } finally {
+        showLoading(false);
+      }
+      return produits;
+    }
+
     // Ouvrir la modale de contrôle
-    function openControleModal(employe) {
+    async function openControleModal(employe) {
       currentEmploye = employe;
       document.getElementById('modalEmployeNom').textContent = `${employe.prenom} ${employe.nom}`;
       document.getElementById('controleModal').classList.remove('hidden');
 
-      // Initialiser les produits
+      // Charger les produits depuis le Google Sheet
+      produits = await loadProduits(employe.ID_Employé);
+
       const produitsList = document.getElementById('produitsList');
       produitsList.innerHTML = '';
 
-      // Si on a déjà un contrôle en cours pour cet employé, utiliser ces valeurs
-      const controleExistant = controles[employe.email] || { produits: [...CONFIG.produits] };
-
-      controleExistant.produits.forEach((produit, index) => {
+      produits.forEach((produit, index) => {
         const produitElement = document.createElement('div');
         produitElement.className = 'flex items-center justify-between p-3 bg-gray-50 rounded';
-
         produitElement.innerHTML = `
-          <span>${produit.designation}</span>
+          <span>${produit.Désignation} (Prévu: ${produit.Qté_Prévue})</span>
           <div class="flex items-center space-x-2">
             <button class="qty-btn minus-btn" data-index="${index}">-</button>
-            <span class="qte-display w-8 text-center">${produit.qte}</span>
+            <span class="qte-display w-8 text-center">0</span>
             <button class="qty-btn plus-btn" data-index="${index}">+</button>
           </div>
         `;
-
         produitsList.appendChild(produitElement);
       });
 
-      // Ajouter les écouteurs d'événements pour les boutons +/-
+      // Ajouter les écouteurs d'événements pour les boutons +/- après avoir chargé les produits
       document.querySelectorAll('.minus-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          updateQte(btn.dataset.index, -1);
-        });
+        btn.addEventListener('click', () => updateQte(btn.dataset.index, -1));
       });
-
       document.querySelectorAll('.plus-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          updateQte(btn.dataset.index, 1);
-        });
+        btn.addEventListener('click', () => updateQte(btn.dataset.index, 1));
       });
     }
 
     // Mettre à jour la quantité
     function updateQte(index, delta) {
-      if (!controles[currentEmploye.email]) {
-        controles[currentEmploye.email] = { produits: [...CONFIG.produits] };
-      }
-
-      const qteElement = document.querySelector(`.qte-display`);
       const qteElements = document.querySelectorAll('.qte-display');
       const currentQte = parseInt(qteElements[index].textContent);
       const newQte = Math.max(0, currentQte + delta);
-
-      controles[currentEmploye.email].produits[index].qte = newQte;
       qteElements[index].textContent = newQte;
     }
 
@@ -200,28 +194,40 @@
     }
 
     // Valider le contrôle
-    function validerControle(avecConfirmation) {
+    async function validerControle(avecConfirmation) {
       if (!currentEmploye) return;
 
-      // Vérifier qu'au moins une quantité est > 0
-      const aAuMoinsUneQte = controles[currentEmploye.email].produits.some(p => p.qte > 0);
-      if (!aAuMoinsUneQte) {
+      const produitsElements = document.querySelectorAll('.qte-display');
+      let hasQte = false;
+
+      for (let i = 0; i < produits.length; i++) {
+        const qteControlee = parseInt(produitsElements[i].textContent);
+        if (qteControlee > 0) {
+          hasQte = true;
+          const response = await fetch(CONFIG.deployedURL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              ID_Employé: currentEmploye.ID_Employé,
+              Code_Produit: produits[i].Code_Produit,
+              Qté_Contrôlée: qteControlee,
+            }),
+          });
+
+          if (!response.ok) {
+            console.error("Erreur lors de l'enregistrement");
+          }
+        }
+      }
+
+      if (!hasQte) {
         alert('Veuillez saisir au moins une quantité');
         return;
       }
 
-      // Enregistrer le contrôle
-      controles[currentEmploye.email] = {
-        ...controles[currentEmploye.email],
-        date: new Date().toISOString(),
-        statut: avecConfirmation ? 'en_attente' : 'valide',
-        manager: currentUser.email
-      };
-
-      console.log('Contrôle enregistré:', controles[currentEmploye.email]);
-      alert(`Contrôle ${avecConfirmation ? 'en attente de validation' : 'validé'} pour ${currentEmploye.prenom}`);
-
-      // Fermer la modale et recharger la liste
+      alert(`Contrôle ${avecConfirmation ? 'en attente de validation' : 'validé'}`);
       closeControleModal();
       loadEmployes();
     }
@@ -230,7 +236,6 @@
     function loadEmployes() {
       const listElement = document.getElementById('employesList');
       listElement.innerHTML = '';
-
       const employes = allUsers.filter(u =>
         u.role === 'employe' && u.manager === currentUser.email
       );
@@ -243,7 +248,6 @@
       employes.forEach(emp => {
         const employeeItem = document.createElement('div');
         employeeItem.className = 'p-3 border rounded-lg bg-white flex justify-between items-center';
-
         const statut = controles[emp.email] ? 'pending' : 'new';
         employeeItem.innerHTML = `
           <div>
@@ -254,7 +258,6 @@
             ${statut === 'new' ? 'Contrôler' : 'Modifier'}
           </button>
         `;
-
         listElement.appendChild(employeeItem);
       });
 
@@ -273,20 +276,19 @@
       event.preventDefault();
       showLoading(true);
       showError('');
-
       const email = document.getElementById('email').value.trim().toLowerCase();
       const password = document.getElementById('password').value;
 
       try {
-        const response = await fetch(CONFIG.deployedURL);
+        const response = await fetch(`${CONFIG.deployedURL}?action=getEmployes`);
         if (!response.ok) throw new Error('Erreur réseau');
-
         const employesData = await response.json();
         if (!Array.isArray(employesData)) throw new Error('Données invalides');
 
         allUsers = [
           ...CONFIG.managers,
           ...employesData.map(emp => ({
+            ID_Employé: emp.ID_Employé || '',
             email: (emp.Email || '').toLowerCase(),
             password: '1234',
             role: 'employe',
@@ -308,7 +310,6 @@
         document.getElementById('managerApp').classList.remove('hidden');
         document.getElementById('currentDate').textContent = formatDate(new Date());
         loadEmployes();
-
       } catch (error) {
         console.error('Erreur:', error);
         showError('Erreur de connexion. Vérifiez votre connexion internet.');
