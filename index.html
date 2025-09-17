@@ -1,20 +1,26 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Contrôles - Ouest Palettes</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Contrôles OP</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <style>
-    body { font-family: 'Inter', sans-serif; }
-    .status-badge { display: inline-block; width: 12px; height: 12px; border-radius: 50%; margin-right: 8px; }
-    .status-done { background-color: #10b981; }
-    .status-pending { background-color: #f59e0b; }
+    body { font-family: 'Arial', sans-serif; margin: 0; padding: 0; height: 100vh; }
+    .hidden { display: none !important; }
+    .status-badge {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      margin-right: 8px;
+    }
     .status-new { background-color: #6b7280; }
-    .qty-btn { width: 30px; height: 30px; font-size: 18px; font-weight: bold; }
-    #managerApp, #employeApp, #modalControle, #loadingSpinner {
-      display: none;
+    .status-pending { background-color: #f59e0b; }
+    .status-done { background-color: #10b981; }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
     }
     .spinner {
       border: 4px solid rgba(0, 0, 0, 0.1);
@@ -23,476 +29,176 @@
       width: 40px;
       height: 40px;
       animation: spin 1s linear infinite;
-      margin: 20px auto;
-    }
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    html, body {
-      height: 100%;
-      margin: 0;
-      padding: 0;
-    }
-    #managerApp, #employeApp {
-      display: none;
-      flex-direction: column;
-      height: 100vh;
     }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-900">
+<body class="bg-gray-50">
+  <!-- Écran de chargement -->
+  <div id="loadingSpinner" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+    <div class="bg-white p-6 rounded-lg flex flex-col items-center">
+      <div class="spinner mb-4"></div>
+      <p class="text-gray-700">Chargement en cours...</p>
+    </div>
+  </div>
+
   <!-- Écran de connexion -->
-  <div id="loginScreen" class="flex flex-col items-center justify-center h-screen px-6">
-    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-md text-center">
-      <img src="https://i.ibb.co/6cRdDfrM/logo-ouest-palettes.png" alt="Ouest Palettes" class="w-40 h-12 mx-auto mb-4" />
-      <p class="text-lg font-semibold text-blue-600 mb-6">Contrôles de Production</p>
+  <div id="loginScreen" class="flex flex-col items-center justify-center h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-md w-80 text-center">
+      <h1 class="text-2xl font-bold mb-6 text-blue-600">Contrôles OP</h1>
       <form id="loginForm" class="space-y-4">
-        <input id="email" type="text" placeholder="Identifiant (email)" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="username" />
-        <input id="password" type="password" placeholder="Mot de passe" class="w-full p-3 border border-gray-300 rounded-lg" required autocomplete="current-password" />
-        <button type="submit" class="w-full bg-blue-600 text-white py-3 rounded-lg font-semibold">Se connecter</button>
+        <input id="email" type="text" placeholder="Identifiant" class="w-full p-2 border rounded" required>
+        <input id="password" type="password" placeholder="Mot de passe" class="w-full p-2 border rounded" required>
+        <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded">Se connecter</button>
       </form>
-      <p id="loginError" class="text-red-500 text-sm mt-2 hidden">Identifiant ou mot de passe incorrect</p>
+      <p id="loginError" class="text-red-500 mt-2 hidden">Identifiant ou mot de passe incorrect</p>
     </div>
+  </div>
 
-  <!-- Application Manager -->
-  <div id="managerApp" class="flex-col">
-    <header class="bg-white shadow-sm p-4">
+  <!-- Interface Manager -->
+  <div id="managerApp" class="hidden h-screen flex flex-col">
+    <header class="bg-white p-4 shadow">
       <div class="flex justify-between items-center">
-        <h1 class="text-xl font-bold">📋 Contrôles — <span id="currentDate"></span></h1>
-        <button id="logoutBtn" class="text-sm text-red-500">Déconnexion</button>
+        <h1 class="text-xl font-bold">📋 Contrôles - <span id="currentDate"></span></h1>
+        <button id="logoutBtn" class="text-red-500">Déconnexion</button>
       </div>
     </header>
-    <div class="flex-1 p-4 space-y-6 overflow-y-auto">
-      <div class="bg-white p-5 rounded-xl shadow">
+
+    <main class="flex-1 p-4 overflow-auto">
+      <div class="bg-white p-4 rounded-lg shadow">
         <h2 class="font-semibold mb-4">Mes Employés</h2>
-        <div id="employesList" class="space-y-3"></div>
+        <div id="employesList" class="space-y-2"></div>
       </div>
-    </div>
-    <div id="offlineBar" class="hidden bg-yellow-500 text-white text-center py-2 text-sm">📴 Hors ligne. Les données seront envoyées dès que vous serez en ligne.</div>
-  </div>
-
-  <!-- Application Employé -->
-  <div id="employeApp" class="flex-col h-screen">
-    <header class="bg-white shadow-sm p-4">
-      <div class="flex justify-between items-center">
-        <h1 class="text-xl font-bold">🔔 Notifications</h1>
-        <button id="logoutBtnEmploye" class="text-sm text-red-500">Déconnexion</button>
-      </div>
-    </header>
-    <div class="flex-1 p-4 space-y-6 overflow-y-auto">
-      <div class="bg-white p-5 rounded-xl shadow">
-        <h2 class="font-semibold mb-4">Contrôles en attente</h2>
-        <div id="notificationsList" class="space-y-3"></div>
-        <p id="noNotifications" class="text-gray-500 text-center py-4 hidden">Aucun contrôle en attente</p>
-      </div>
-    </div>
-  </div>
-
-  <!-- Modal Fiche Contrôle -->
-  <div id="modalControle" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-    <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 relative">
-      <button id="closeModalBtn" class="absolute top-4 right-4 text-gray-500 hover:text-gray-700 text-2xl">×</button>
-      <h2 class="text-xl font-bold mb-4">📅 <span id="modalDate"></span></h2>
-      <h3 class="text-lg font-semibold mb-4">👤 <span id="modalEmployeNom"></span></h3>
-      <div id="produitsList" class="space-y-4 mb-6"></div>
-      <div class="flex space-x-2">
-        <button id="validerSansConfirmationBtn" class="flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold">✅ Valider sans confirmation</button>
-        <button id="validerAvecConfirmationBtn" class="flex-1 bg-blue-600 text-white py-3 rounded-lg font-semibold">🔄 Valider et attendre confirmation</button>
-      </div>
-    </div>
-  </div>
-
-  <div id="toast" class="fixed bottom-5 left-1/2 bg-black text-white px-4 py-2 rounded-lg text-sm hidden transform -translate-x-1/2 transition-opacity duration-300"></div>
-  <div id="loadingSpinner" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-    <div class="bg-white p-6 rounded-lg shadow-xl flex flex-col items-center">
-      <div class="spinner"></div>
-      <p class="mt-4 text-gray-700">Chargement en cours...</p>
-    </div>
+    </main>
   </div>
 
   <script>
-    var deployedURL = 'https://script.google.com/macros/s/AKfycbxWEfPlq6KBLE5hwk86e3O6xoaG3m1J8bIV9eu9IlS0AZOqYW2wpTBKJ84TBbH-DORPPw/exec';
+    // Configuration
+    const CONFIG = {
+      deployedURL: 'https://script.google.com/macros/s/AKfycbxWEfPlq6KBLE5hwk86e3O6xoaG3m1J8bIV9eu9IlS0AZOqYW2wpTBKJ84TBbH-DORPPw/exec',
+      managers: [
+        { email: 'thierry', password: '1234', role: 'manager' },
+        { email: 'johan', password: '1234', role: 'manager' }
+      ]
+    };
+
+    // État de l'application
     let currentUser = null;
     let allUsers = [];
-    let controlesEnCours = {};
-    let notifications = [];
-    let timers = {};
 
-    document.addEventListener('DOMContentLoaded', function () {
-      const CONFIG = {
-        managers: [
-          { email: 'thierry', password: '1234', role: 'manager', equipe: 'Atelier Brest' },
-          { email: 'johan', password: '1234', role: 'manager', equipe: 'Atelier Rennes' }
-        ],
-        urlScript: deployedURL,
-        delaiAutoValidation: 2 * 60 * 60 * 1000 // 2 heures
-      };
-      controlesEnCours = JSON.parse(localStorage.getItem('controlesEnCours_palettes') || '{}');
-      notifications = JSON.parse(localStorage.getItem('notifications_palettes') || '[]');
-      timers = JSON.parse(localStorage.getItem('timers_palettes') || '{}');
+    // Fonctions utilitaires
+    function showLoading(show) {
+      document.getElementById('loadingSpinner').classList.toggle('hidden', !show);
+    }
 
-      function formatDate(date) {
-        return new Intl.DateTimeFormat('fr-FR').format(date);
-      }
+    function showError(message) {
+      const errorElement = document.getElementById('loginError');
+      errorElement.textContent = message;
+      errorElement.classList.remove('hidden');
+    }
 
-      function showToast(msg) {
-        const toast = document.getElementById('toast');
-        toast.textContent = msg;
-        toast.classList.remove('hidden');
-        setTimeout(() => toast.classList.add('hidden'), 3000);
-      }
+    function formatDate(date) {
+      return new Intl.DateTimeFormat('fr-FR').format(date);
+    }
 
-      function showLoading(show) {
-        document.getElementById('loadingSpinner').style.display = show ? 'flex' : 'none';
-      }
+    // Gestion de la connexion
+    async function login(event) {
+      event.preventDefault();
+      showLoading(true);
+      showError('');
 
-      function checkOnlineStatus() {
-        const bar = document.getElementById('offlineBar');
-        window.addEventListener('online', () => {
-          bar.classList.add('hidden');
-          syncOfflineData();
-        });
-        window.addEventListener('offline', () => {
-          bar.classList.remove('hidden');
-        });
-        if (!navigator.onLine) bar.classList.remove('hidden');
-      }
+      const email = document.getElementById('email').value.trim().toLowerCase();
+      const password = document.getElementById('password').value;
 
-      async function login() {
-        const email = document.getElementById('email').value.trim().toLowerCase();
-        const password = document.getElementById('password').value;
-        document.getElementById('loginError').classList.add('hidden');
-        showLoading(true);
-        try {
-          const response = await fetch(deployedURL);
-          if (!response.ok) throw new Error(`HTTP ${response.status}`);
-          const employesData = await response.json();
+      try {
+        // Récupérer les données des employés
+        const response = await fetch(CONFIG.deployedURL);
+        if (!response.ok) throw new Error('Erreur réseau');
 
-          if (!Array.isArray(employesData)) {
-            throw new Error("Données invalides reçues du script");
-          }
-          allUsers = [
-            ...CONFIG.managers,
-            ...employesData.map(emp => ({
-              email: (emp.Email || emp.email || '').toLowerCase(),
-              password: '1234',
-              role: 'employe',
-              equipe: emp.Equipe || emp.equipe || '',
-              manager: (emp.Equipe || emp.equipe || '').toString().includes('1') ? 'thierry' : 'johan',
-              Prénom: emp.Prénom || '',
-              Nom: emp.Nom || ''
-            }))
-          ];
+        const employesData = await response.json();
+        if (!Array.isArray(employesData)) throw new Error('Données invalides');
 
-          const user = allUsers.find(u => u.email === email && u.password === password);
-
-          if (user) {
-            currentUser = user;
-            document.getElementById('loginScreen').style.display = 'none';
-            if (user.role === 'manager') {
-              document.getElementById('managerApp').style.display = 'flex';
-              loadEmployes();
-            } else {
-              document.getElementById('employeApp').style.display = 'flex';
-              loadNotifications();
-            }
-            document.getElementById('currentDate').textContent = formatDate(new Date());
-            document.getElementById('modalDate').textContent = formatDate(new Date());
-            checkOnlineStatus();
-          } else {
-            document.getElementById('loginError').classList.remove('hidden');
-          }
-        } catch (err) {
-          console.error("Erreur de connexion :", err);
-          showToast("Impossible de charger les employés. Vérifiez votre connexion internet et le script.");
-        } finally {
-          showLoading(false);
-        }
-      }
-
-      function logout() {
-        currentUser = null;
-        document.getElementById('loginScreen').style.display = 'flex';
-        document.getElementById('managerApp').style.display = 'none';
-        document.getElementById('employeApp').style.display = 'none';
-        document.getElementById('modalControle').classList.add('hidden');
-      }
-
-      function loadEmployes() {
-        const list = document.getElementById('employesList');
-        list.innerHTML = '';
-        const employes = allUsers.filter(u => u.role === 'employe' && u.manager === currentUser.email);
-
-        if (employes.length === 0) {
-          list.innerHTML = '<p class="text-gray-500 text-center py-4">Aucun employé dans votre équipe</p>';
-          return;
-        }
-
-        employes.forEach(emp => {
-          let statut = 'new';
-          if (controlesEnCours[emp.email]?.statut === 'pending') statut = 'pending';
-          else if (controlesEnCours[emp.email]?.statut === 'done') statut = 'done';
-
-          const item = document.createElement('div');
-          item.className = 'border p-3 rounded-lg bg-gray-50 flex justify-between items-center';
-          item.innerHTML = `
-            <div>
-              <span class="status-badge status-${statut}"></span>
-              <span class="font-medium">${emp.Prénom || emp.Nom || emp.email}</span>
-            </div>
-            <button data-email="${emp.email}" class="open-controle-btn bg-blue-600 text-white px-3 py-1 rounded text-sm">
-              ${statut === 'new' ? 'Contrôler' : 'Modifier'}
-            </button>
-          `;
-          list.appendChild(item);
-        });
-
-        document.querySelectorAll('.open-controle-btn').forEach(btn => {
-          btn.addEventListener('click', function() {
-            openControle(this.getAttribute('data-email'));
-          });
-        });
-      }
-
-      function openControle(employeEmail) {
-        const employe = allUsers.find(u => u.email === employeEmail);
-        if (!employe) {
-          showToast("Employé non trouvé");
-          return;
-        }
-        document.getElementById('modalEmployeNom').textContent = `${employe.Prénom || ''} ${employe.Nom || ''}`.trim() || employe.email;
-        document.getElementById('modalEmployeNom').setAttribute('data-email', employe.email);
-        const produits = controlesEnCours[employeEmail]?.produits || [
-          { designation: 'Palette EURO neuve', qté: 0 },
-          { designation: 'Palette réparée H1', qté: 0 },
-          { designation: 'Palette perdue', qté: 0 }
+        // Créer la liste de tous les utilisateurs
+        allUsers = [
+          ...CONFIG.managers,
+          ...employesData.map(emp => ({
+            email: (emp.Email || '').toLowerCase(),
+            password: '1234',
+            role: 'employe',
+            nom: emp.Nom || '',
+            prenom: emp.Prénom || '',
+            equipe: emp.Equipe || '',
+            manager: String(emp.Equipe).includes('1') ? 'thierry' : 'johan'
+          }))
         ];
-        const produitsList = document.getElementById('produitsList');
-        produitsList.innerHTML = '';
-        produits.forEach((prod, index) => {
-          const div = document.createElement('div');
-          div.className = 'flex items-center justify-between p-3 bg-gray-100 rounded-lg';
-          div.innerHTML = `
-            <span>${prod.designation}</span>
-            <div class="flex items-center space-x-2">
-              <button class="qty-btn bg-gray-300 rounded" data-email="${employeEmail}" data-index="${index}" data-delta="-1">-</button>
-              <span id="qty-${employeEmail}-${index}" class="font-bold w-12 text-center">${prod.qté}</span>
-              <button class="qty-btn bg-gray-300 rounded" data-email="${employeEmail}" data-index="${index}" data-delta="1">+</button>
-            </div>
-          `;
-          produitsList.appendChild(div);
-        });
-        controlesEnCours[employeEmail] = controlesEnCours[employeEmail] || {};
-        controlesEnCours[employeEmail].produits = produits;
-        localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
-        document.querySelectorAll('.qty-btn').forEach(btn => {
-          btn.addEventListener('click', function() {
-            const email = this.getAttribute('data-email');
-            const index = parseInt(this.getAttribute('data-index'));
-            const delta = parseInt(this.getAttribute('data-delta'));
-            updateQty(email, index, delta);
-          });
-        });
-        document.getElementById('modalControle').classList.remove('hidden');
-      }
 
-      function closeModal() {
-        document.getElementById('modalControle').classList.add('hidden');
-      }
-
-      function updateQty(employeEmail, index, delta) {
-        if (!controlesEnCours[employeEmail]) {
-          controlesEnCours[employeEmail] = { produits: [
-            { designation: 'Palette EURO neuve', qté: 0 },
-            { designation: 'Palette réparée H1', qté: 0 },
-            { designation: 'Palette perdue', qté: 0 }
-          ]};
-        }
-        const produits = controlesEnCours[employeEmail].produits;
-        produits[index].qté = Math.max(0, produits[index].qté + delta);
-        document.getElementById(`qty-${employeEmail}-${index}`).textContent = produits[index].qté;
-        localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
-      }
-
-      function validerControle(attenteConfirmation) {
-        const employeEmail = document.getElementById('modalEmployeNom').getAttribute('data-email');
-        const employe = allUsers.find(u => u.email === employeEmail);
-        if (!employe) {
-          showToast("Employé non trouvé");
+        // Vérifier les identifiants
+        const user = allUsers.find(u => u.email === email && u.password === password);
+        if (!user) {
+          showError('Identifiant ou mot de passe incorrect');
           return;
         }
-        const produits = controlesEnCours[employeEmail].produits;
-        if (produits.every(p => p.qté === 0)) {
-          showToast('Veuillez saisir au moins une quantité.');
-          return;
-        }
-        const controle = {
-          manager: currentUser.email,
-          employe: employe.email,
-          produits: produits,
-          date: new Date().toISOString(),
-          statut: attenteConfirmation ? 'pending' : 'done',
-          reponseEmploye: null,
-          timestampValidation: Date.now()
-        };
-        controlesEnCours[employe.email] = controle;
-        localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
-        if (attenteConfirmation) {
-          const notif = {
-            id: Date.now().toString(),
-            ...controle
-          };
-          notifications.push(notif);
-          localStorage.setItem('notifications_palettes', JSON.stringify(notifications));
-          const timerId = setTimeout(() => {
-            autoValiderControle(notif.id);
-          }, CONFIG.delaiAutoValidation);
-          timers[notif.id] = timerId;
-          localStorage.setItem('timers_palettes', JSON.stringify(timers));
-        }
-        sendToGoogleScript(controle);
-        closeModal();
+
+        // Connexion réussie
+        currentUser = user;
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('managerApp').classList.remove('hidden');
+        document.getElementById('currentDate').textContent = formatDate(new Date());
+
+        // Charger les employés
         loadEmployes();
-        showToast(`✅ Contrôle enregistré pour ${employe.email}`);
+
+      } catch (error) {
+        console.error('Erreur:', error);
+        showError('Erreur de connexion. Vérifiez votre connexion internet.');
+      } finally {
+        showLoading(false);
+      }
+    }
+
+    // Charger la liste des employés
+    function loadEmployes() {
+      const listElement = document.getElementById('employesList');
+      listElement.innerHTML = '';
+
+      const employes = allUsers.filter(u =>
+        u.role === 'employe' && u.manager === currentUser.email
+      );
+
+      if (employes.length === 0) {
+        listElement.innerHTML = '<p class="text-gray-500">Aucun employé trouvé</p>';
+        return;
       }
 
-      function autoValiderControle(notifId) {
-        const index = notifications.findIndex(n => n.id === notifId);
-        if (index !== -1) {
-          notifications[index].statut = 'done';
-          notifications[index].reponseEmploye = 'auto';
-          localStorage.setItem('notifications_palettes', JSON.stringify(notifications));
-          if (timers[notifId]) {
-            clearTimeout(timers[notifId]);
-            delete timers[notifId];
-            localStorage.setItem('timers_palettes', JSON.stringify(timers));
-          }
-          sendToGoogleScript(notifications[index]);
-        }
-      }
+      employes.forEach(emp => {
+        const employeeItem = document.createElement('div');
+        employeeItem.className = 'p-3 border rounded-lg bg-white flex justify-between items-center';
 
-      function loadNotifications() {
-        const list = document.getElementById('notificationsList');
-        const noNotif = document.getElementById('noNotifications');
-        list.innerHTML = '';
-        const mesNotifs = notifications.filter(n => n.employe === currentUser.email && n.statut === 'pending');
-        if (mesNotifs.length === 0) {
-          noNotif.classList.remove('hidden');
-          return;
-        }
-        noNotif.classList.add('hidden');
-        mesNotifs.forEach(notif => {
-          const item = document.createElement('div');
-          item.className = 'border p-4 rounded-lg bg-blue-50';
-          let produitsHtml = '';
-          notif.produits.forEach(p => {
-            if (p.qté > 0) produitsHtml += `<div>${p.designation}: <strong>${p.qté}</strong></div>`;
-          });
-          item.innerHTML = `
-            <p class="text-sm text-gray-500">Contrôle du ${formatDate(new Date(notif.date))} par ${notif.manager}</p>
-            ${produitsHtml}
-            <div class="flex space-x-2 mt-4">
-              <button data-id="${notif.id}" data-response="valide" class="reponse-btn flex-1 bg-green-600 text-white py-2 rounded text-sm">✅ Je valide</button>
-              <button data-id="${notif.id}" data-response="recontrole" class="reponse-btn flex-1 bg-yellow-600 text-white py-2 rounded text-sm">🔄 Demander recontrôle</button>
-            </div>
-          `;
-          list.appendChild(item);
-        });
-        document.querySelectorAll('.reponse-btn').forEach(btn => {
-          btn.addEventListener('click', function() {
-            const notifId = this.getAttribute('data-id');
-            const reponse = this.getAttribute('data-response');
-            repondreControle(notifId, reponse);
-          });
-        });
-      }
+        const status = 'new'; // Statut par défaut
+        employeeItem.innerHTML = `
+          <div>
+            <span class="status-badge status-${status}"></span>
+            <span>${emp.prenom} ${emp.nom}</span>
+          </div>
+          <button class="bg-blue-500 text-white px-3 py-1 rounded text-sm">
+            Contrôler
+          </button>
+        `;
 
-      function repondreControle(notifId, reponse) {
-        const index = notifications.findIndex(n => n.id === notifId);
-        if (index !== -1) {
-          notifications[index].statut = 'done';
-          notifications[index].reponseEmploye = reponse;
-          localStorage.setItem('notifications_palettes', JSON.stringify(notifications));
-          if (timers[notifId]) {
-            clearTimeout(timers[notifId]);
-            delete timers[notifId];
-            localStorage.setItem('timers_palettes', JSON.stringify(timers));
-          }
-          sendToGoogleScript(notifications[index]);
-          loadNotifications();
-          showToast(`✅ Réponse enregistrée`);
-        }
-      }
-
-      async function sendToGoogleScript(data) {
-        if (!navigator.onLine) {
-          const pendingData = JSON.parse(localStorage.getItem('pendingData_palettes') || '[]');
-          pendingData.push(data);
-          localStorage.setItem('pendingData_palettes', JSON.stringify(pendingData));
-          showToast('⚠️ Mode hors ligne — sauvegardé localement');
-          return;
-        }
-        try {
-          const response = await fetch(CONFIG.urlScript, {
-            method: 'POST',
-            body: JSON.stringify(data),
-            headers: { 'Content-Type': 'application/json' }
-          });
-          const result = await response.json();
-          if (result.status !== 'success') throw new Error(result.message);
-        } catch (err) {
-          console.error('Erreur lors de l\'envoi:', err);
-          const pendingData = JSON.parse(localStorage.getItem('pendingData_palettes') || '[]');
-          pendingData.push(data);
-          localStorage.setItem('pendingData_palettes', JSON.stringify(pendingData));
-          showToast('⚠️ Erreur d’envoi — sauvegardé localement');
-        }
-      }
-
-      function syncOfflineData() {
-        const pendingData = JSON.parse(localStorage.getItem('pendingData_palettes') || '[]');
-        if (pendingData.length === 0) return;
-        showToast('Synchronisation des données hors ligne...');
-        pendingData.forEach((data, index) => {
-          fetch(CONFIG.urlScript, {
-            method: 'POST',
-            body: JSON.stringify(data),
-            headers: { 'Content-Type': 'application/json' }
-          })
-          .then(async (res) => {
-            const result = await res.json();
-            if (result.status === 'success') {
-              pendingData.splice(index, 1);
-              localStorage.setItem('pendingData_palettes', JSON.stringify(pendingData));
-            }
-          })
-          .catch(err => console.error('Erreur de synchro:', err));
-        });
-      }
-
-      Object.entries(timers).forEach(([notifId, timerInfo]) => {
-        const now = Date.now();
-        const elapsed = now - timerInfo.startTime;
-        const remaining = CONFIG.delaiAutoValidation - elapsed;
-        if (remaining > 0) {
-          timers[notifId] = setTimeout(() => {
-            autoValiderControle(notifId);
-          }, remaining);
-        } else {
-          autoValiderControle(notifId);
-        }
+        listElement.appendChild(employeeItem);
       });
+    }
 
-      document.getElementById('loginForm').addEventListener('submit', function(e) {
-        e.preventDefault();
-        login();
-      });
+    // Déconnexion
+    function logout() {
+      document.getElementById('managerApp').classList.add('hidden');
+      document.getElementById('loginScreen').classList.remove('hidden');
+      currentUser = null;
+    }
+
+    // Initialisation
+    document.addEventListener('DOMContentLoaded', () => {
+      document.getElementById('loginForm').addEventListener('submit', login);
       document.getElementById('logoutBtn').addEventListener('click', logout);
-      document.getElementById('logoutBtnEmploye').addEventListener('click', logout);
-      document.getElementById('closeModalBtn').addEventListener('click', closeModal);
-      document.getElementById('validerSansConfirmationBtn').addEventListener('click', () => validerControle(false));
-      document.getElementById('validerAvecConfirmationBtn').addEventListener('click', () => validerControle(true));
     });
   </script>
 </body>
