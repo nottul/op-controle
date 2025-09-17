@@ -13,7 +13,9 @@
     .status-pending { background-color: #f59e0b; }
     .status-new { background-color: #6b7280; }
     .qty-btn { width: 30px; height: 30px; font-size: 18px; font-weight: bold; }
-    #managerApp, #employeApp, #modalControle, #loadingSpinner { display: none; }
+    #managerApp, #employeApp, #modalControle, #loadingSpinner {
+      display: none;
+    }
     .spinner {
       border: 4px solid rgba(0, 0, 0, 0.1);
       border-radius: 50%;
@@ -27,16 +29,15 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
-    /* Styles supplémentaires pour garantir la visibilité */
-    #managerApp {
-      height: 100vh;
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+    }
+    #managerApp, #employeApp {
       display: none;
-    }
-    #managerApp.visible {
-      display: flex;
-    }
-    #employesList {
-      min-height: 200px;
+      flex-direction: column;
+      height: 100vh;
     }
   </style>
 </head>
@@ -55,7 +56,7 @@
     </div>
 
   <!-- Application Manager -->
-  <div id="managerApp" class="flex-col h-screen">
+  <div id="managerApp" class="flex-col">
     <header class="bg-white shadow-sm p-4">
       <div class="flex justify-between items-center">
         <h1 class="text-xl font-bold">📋 Contrôles — <span id="currentDate"></span></h1>
@@ -72,7 +73,7 @@
   </div>
 
   <!-- Application Employé -->
-  <div id="employeApp" class="hidden flex-col h-screen">
+  <div id="employeApp" class="flex-col h-screen">
     <header class="bg-white shadow-sm p-4">
       <div class="flex justify-between items-center">
         <h1 class="text-xl font-bold">🔔 Notifications</h1>
@@ -188,13 +189,12 @@
 
           if (user) {
             currentUser = user;
-            document.getElementById('loginScreen').classList.add('hidden');
+            document.getElementById('loginScreen').style.display = 'none';
             if (user.role === 'manager') {
-              document.getElementById('managerApp').classList.add('visible');
-              document.getElementById('managerApp').classList.remove('hidden');
+              document.getElementById('managerApp').style.display = 'flex';
               loadEmployes();
             } else {
-              document.getElementById('employeApp').classList.remove('hidden');
+              document.getElementById('employeApp').style.display = 'flex';
               loadNotifications();
             }
             document.getElementById('currentDate').textContent = formatDate(new Date());
@@ -213,10 +213,9 @@
 
       function logout() {
         currentUser = null;
-        document.getElementById('loginScreen').classList.remove('hidden');
-        document.getElementById('managerApp').classList.add('hidden');
-        document.getElementById('managerApp').classList.remove('visible');
-        document.getElementById('employeApp').classList.add('hidden');
+        document.getElementById('loginScreen').style.display = 'flex';
+        document.getElementById('managerApp').style.display = 'none';
+        document.getElementById('employeApp').style.display = 'none';
         document.getElementById('modalControle').classList.add('hidden');
       }
 
