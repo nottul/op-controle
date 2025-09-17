@@ -214,12 +214,13 @@
           let statut = 'new';
           if (controlesEnCours[emp.email]?.statut === 'pending') statut = 'pending';
           else if (controlesEnCours[emp.email]?.statut === 'done') statut = 'done';
+
           const item = document.createElement('div');
           item.className = 'border p-3 rounded-lg bg-gray-50 flex justify-between items-center';
           item.innerHTML = `
             <div>
               <span class="status-badge status-${statut}"></span>
-              <span class="font-medium">${emp.Prénom || emp.email.split('@')[0].charAt(0).toUpperCase() + emp.email.split('@')[0].slice(1)}</span>
+              <span class="font-medium">${emp.Prénom || emp.Nom || emp.email}</span>
             </div>
             <button data-email="${emp.email}" class="open-controle-btn bg-blue-600 text-white px-3 py-1 rounded text-sm">
               ${statut === 'new' ? 'Contrôler' : 'Modifier'}
@@ -227,6 +228,9 @@
           `;
           list.appendChild(item);
         });
+
+        console.log("Boutons attachés :", document.querySelectorAll('.open-controle-btn').length);
+
         document.querySelectorAll('.open-controle-btn').forEach(btn => {
           btn.addEventListener('click', function() {
             openControle(this.getAttribute('data-email'));
