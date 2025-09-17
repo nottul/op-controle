@@ -27,6 +27,17 @@
       0% { transform: rotate(0deg); }
       100% { transform: rotate(360deg); }
     }
+    /* Styles supplémentaires pour garantir la visibilité */
+    #managerApp {
+      height: 100vh;
+      display: none;
+    }
+    #managerApp.visible {
+      display: flex;
+    }
+    #employesList {
+      min-height: 200px;
+    }
   </style>
 </head>
 <body class="bg-gray-50 text-gray-900">
@@ -42,9 +53,9 @@
       </form>
       <p id="loginError" class="text-red-500 text-sm mt-2 hidden">Identifiant ou mot de passe incorrect</p>
     </div>
-  </div>
+
   <!-- Application Manager -->
-  <div id="managerApp" class="hidden flex-col h-screen">
+  <div id="managerApp" class="flex-col h-screen">
     <header class="bg-white shadow-sm p-4">
       <div class="flex justify-between items-center">
         <h1 class="text-xl font-bold">📋 Contrôles — <span id="currentDate"></span></h1>
@@ -59,6 +70,7 @@
     </div>
     <div id="offlineBar" class="hidden bg-yellow-500 text-white text-center py-2 text-sm">📴 Hors ligne. Les données seront envoyées dès que vous serez en ligne.</div>
   </div>
+
   <!-- Application Employé -->
   <div id="employeApp" class="hidden flex-col h-screen">
     <header class="bg-white shadow-sm p-4">
@@ -75,6 +87,7 @@
       </div>
     </div>
   </div>
+
   <!-- Modal Fiche Contrôle -->
   <div id="modalControle" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
     <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 relative">
@@ -88,6 +101,7 @@
       </div>
     </div>
   </div>
+
   <div id="toast" class="fixed bottom-5 left-1/2 bg-black text-white px-4 py-2 rounded-lg text-sm hidden transform -translate-x-1/2 transition-opacity duration-300"></div>
   <div id="loadingSpinner" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
     <div class="bg-white p-6 rounded-lg shadow-xl flex flex-col items-center">
@@ -95,6 +109,7 @@
       <p class="mt-4 text-gray-700">Chargement en cours...</p>
     </div>
   </div>
+
   <script>
     var deployedURL = 'https://script.google.com/macros/s/AKfycbxWEfPlq6KBLE5hwk86e3O6xoaG3m1J8bIV9eu9IlS0AZOqYW2wpTBKJ84TBbH-DORPPw/exec';
     let currentUser = null;
@@ -102,6 +117,7 @@
     let controlesEnCours = {};
     let notifications = [];
     let timers = {};
+
     document.addEventListener('DOMContentLoaded', function () {
       const CONFIG = {
         managers: [
@@ -114,18 +130,22 @@
       controlesEnCours = JSON.parse(localStorage.getItem('controlesEnCours_palettes') || '{}');
       notifications = JSON.parse(localStorage.getItem('notifications_palettes') || '[]');
       timers = JSON.parse(localStorage.getItem('timers_palettes') || '{}');
+
       function formatDate(date) {
         return new Intl.DateTimeFormat('fr-FR').format(date);
       }
+
       function showToast(msg) {
         const toast = document.getElementById('toast');
         toast.textContent = msg;
         toast.classList.remove('hidden');
         setTimeout(() => toast.classList.add('hidden'), 3000);
       }
+
       function showLoading(show) {
         document.getElementById('loadingSpinner').style.display = show ? 'flex' : 'none';
       }
+
       function checkOnlineStatus() {
         const bar = document.getElementById('offlineBar');
         window.addEventListener('online', () => {
@@ -137,6 +157,7 @@
         });
         if (!navigator.onLine) bar.classList.remove('hidden');
       }
+
       async function login() {
         const email = document.getElementById('email').value.trim().toLowerCase();
         const password = document.getElementById('password').value;
@@ -146,7 +167,6 @@
           const response = await fetch(deployedURL);
           if (!response.ok) throw new Error(`HTTP ${response.status}`);
           const employesData = await response.json();
-          console.log("Données reçues du script :", employesData);
 
           if (!Array.isArray(employesData)) {
             throw new Error("Données invalides reçues du script");
@@ -164,15 +184,13 @@
             }))
           ];
 
-          console.log("Utilisateurs chargés :", allUsers);
-
           const user = allUsers.find(u => u.email === email && u.password === password);
-          console.log("Utilisateur trouvé :", user);
 
           if (user) {
             currentUser = user;
             document.getElementById('loginScreen').classList.add('hidden');
             if (user.role === 'manager') {
+              document.getElementById('managerApp').classList.add('visible');
               document.getElementById('managerApp').classList.remove('hidden');
               loadEmployes();
             } else {
@@ -192,24 +210,26 @@
           showLoading(false);
         }
       }
+
       function logout() {
         currentUser = null;
         document.getElementById('loginScreen').classList.remove('hidden');
         document.getElementById('managerApp').classList.add('hidden');
+        document.getElementById('managerApp').classList.remove('visible');
         document.getElementById('employeApp').classList.add('hidden');
         document.getElementById('modalControle').classList.add('hidden');
       }
+
       function loadEmployes() {
         const list = document.getElementById('employesList');
         list.innerHTML = '';
         const employes = allUsers.filter(u => u.role === 'employe' && u.manager === currentUser.email);
 
-        console.log("Employés filtrés :", employes);
-
         if (employes.length === 0) {
           list.innerHTML = '<p class="text-gray-500 text-center py-4">Aucun employé dans votre équipe</p>';
           return;
         }
+
         employes.forEach(emp => {
           let statut = 'new';
           if (controlesEnCours[emp.email]?.statut === 'pending') statut = 'pending';
@@ -229,14 +249,13 @@
           list.appendChild(item);
         });
 
-        console.log("Boutons attachés :", document.querySelectorAll('.open-controle-btn').length);
-
         document.querySelectorAll('.open-controle-btn').forEach(btn => {
           btn.addEventListener('click', function() {
             openControle(this.getAttribute('data-email'));
           });
         });
       }
+
       function openControle(employeEmail) {
         const employe = allUsers.find(u => u.email === employeEmail);
         if (!employe) {
@@ -278,9 +297,11 @@
         });
         document.getElementById('modalControle').classList.remove('hidden');
       }
+
       function closeModal() {
         document.getElementById('modalControle').classList.add('hidden');
       }
+
       function updateQty(employeEmail, index, delta) {
         if (!controlesEnCours[employeEmail]) {
           controlesEnCours[employeEmail] = { produits: [
@@ -294,6 +315,7 @@
         document.getElementById(`qty-${employeEmail}-${index}`).textContent = produits[index].qté;
         localStorage.setItem('controlesEnCours_palettes', JSON.stringify(controlesEnCours));
       }
+
       function validerControle(attenteConfirmation) {
         const employeEmail = document.getElementById('modalEmployeNom').getAttribute('data-email');
         const employe = allUsers.find(u => u.email === employeEmail);
@@ -335,6 +357,7 @@
         loadEmployes();
         showToast(`✅ Contrôle enregistré pour ${employe.email}`);
       }
+
       function autoValiderControle(notifId) {
         const index = notifications.findIndex(n => n.id === notifId);
         if (index !== -1) {
@@ -349,6 +372,7 @@
           sendToGoogleScript(notifications[index]);
         }
       }
+
       function loadNotifications() {
         const list = document.getElementById('notificationsList');
         const noNotif = document.getElementById('noNotifications');
@@ -384,6 +408,7 @@
           });
         });
       }
+
       function repondreControle(notifId, reponse) {
         const index = notifications.findIndex(n => n.id === notifId);
         if (index !== -1) {
@@ -400,6 +425,7 @@
           showToast(`✅ Réponse enregistrée`);
         }
       }
+
       async function sendToGoogleScript(data) {
         if (!navigator.onLine) {
           const pendingData = JSON.parse(localStorage.getItem('pendingData_palettes') || '[]');
@@ -424,6 +450,7 @@
           showToast('⚠️ Erreur d’envoi — sauvegardé localement');
         }
       }
+
       function syncOfflineData() {
         const pendingData = JSON.parse(localStorage.getItem('pendingData_palettes') || '[]');
         if (pendingData.length === 0) return;
@@ -444,6 +471,7 @@
           .catch(err => console.error('Erreur de synchro:', err));
         });
       }
+
       Object.entries(timers).forEach(([notifId, timerInfo]) => {
         const now = Date.now();
         const elapsed = now - timerInfo.startTime;
@@ -456,6 +484,7 @@
           autoValiderControle(notifId);
         }
       });
+
       document.getElementById('loginForm').addEventListener('submit', function(e) {
         e.preventDefault();
         login();
