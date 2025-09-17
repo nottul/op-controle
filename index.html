@@ -89,7 +89,7 @@
         <h2 class="text-xl font-bold">Contrôle pour <span id="modalEmployeNom"></span></h2>
         <button id="closeModalBtn" class="text-gray-500 text-2xl">&times;</button>
       </div>
-      <div id="produitsList" class="space-y-4 mb-6"></div>
+      <div id="produitsList" class="space-y-4 mb-6 max-h-96 overflow-y-auto"></div>
       <div class="flex space-x-2">
         <button id="validerSansConfirmationBtn" class="flex-1 bg-green-600 text-white py-2 rounded">✅ Valider sans confirmation</button>
         <button id="validerAvecConfirmationBtn" class="flex-1 bg-blue-600 text-white py-2 rounded">🔄 Valider avec confirmation</button>
@@ -161,7 +161,7 @@
       const produitsList = document.getElementById('produitsList');
       produitsList.innerHTML = '';
 
-      if (produits.length === 0) {
+      if (!produits || produits.length === 0) {
         produitsList.innerHTML = '<p class="text-gray-500">Aucun produit trouvé pour cet employé.</p>';
         return;
       }
@@ -171,7 +171,11 @@
         const produitElement = document.createElement('div');
         produitElement.className = 'flex items-center justify-between p-3 bg-gray-50 rounded';
         produitElement.innerHTML = `
-          <span>${produit.Code_Produit || 'Non défini'} - ${produit.Désignation || 'Non défini'} (Prévu: ${produit.Qté_Prévue || 'Non défini'})</span>
+          <span class="font-medium">
+            ${produit.Code_Produit ? produit.Code_Produit + ' - ' : ''}
+            ${produit.Désignation || 'Produit non défini'}
+            ${produit.Qté_Prévue !== undefined ? `(Prévu: ${produit.Qté_Prévue})` : ''}
+          </span>
           <div class="flex items-center space-x-2">
             <button class="qty-btn minus-btn" data-index="${index}">-</button>
             <span class="qte-display w-8 text-center">0</span>
@@ -209,25 +213,32 @@
 
       const produitsElements = document.querySelectorAll('.qte-display');
       let hasQte = false;
+      let allUpdatesSuccessful = true;
 
       for (let i = 0; i < produits.length; i++) {
         const qteControlee = parseInt(produitsElements[i].textContent);
         if (qteControlee > 0) {
           hasQte = true;
-          const response = await fetch(CONFIG.deployedURL, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              ID_Employé: currentEmploye.ID_Employé,
-              Code_Produit: produits[i].Code_Produit,
-              Qté_Contrôlée: qteControlee,
-            }),
-          });
+          try {
+            const response = await fetch(CONFIG.deployedURL, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                ID_Employé: currentEmploye.ID_Employé,
+                Code_Produit: produits[i].Code_Produit,
+                Qté_Contrôlée: qteControlee,
+              }),
+            });
 
-          if (!response.ok) {
-            console.error("Erreur lors de l'enregistrement");
+            if (!response.ok) {
+              console.error("Erreur lors de l'enregistrement du produit:", produits[i]);
+              allUpdatesSuccessful = false;
+            }
+          } catch (error) {
+            console.error("Erreur lors de l'enregistrement:", error);
+            allUpdatesSuccessful = false;
           }
         }
       }
@@ -237,7 +248,12 @@
         return;
       }
 
-      alert(`Contrôle ${avecConfirmation ? 'en attente de validation' : 'validé'}`);
+      if (allUpdatesSuccessful) {
+        alert(`Contrôle ${avecConfirmation ? 'en attente de validation' : 'validé'} avec succès`);
+      } else {
+        alert(`Contrôle ${avecConfirmation ? 'en attente de validation' : 'validé'}, mais certaines mises à jour ont échoué. Vérifiez les logs pour plus de détails.`);
+      }
+
       closeControleModal();
       loadEmployes();
     }
