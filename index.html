@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Contrôles OP</title>
+  <title>Contrôles OP - Personnel</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body { font-family: 'Arial', sans-serif; margin: 0; padding: 0; height: 100vh; }
@@ -46,6 +46,15 @@
       max-height: 80vh;
       overflow-y: auto;
     }
+    .logo-container {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+    }
+    .logo {
+      height: 60px;
+      width: auto;
+    }
     .debug-info {
       background-color: #f3f4f6;
       padding: 1rem;
@@ -73,15 +82,19 @@
   </div>
 
   <!-- Écran de connexion -->
-  <div id="loginScreen" class="flex flex-col items-center justify-center h-screen">
+  <div id="loginScreen" class="flex flex-col items-center justify-center h-screen bg-gray-50">
     <div class="bg-white p-8 rounded-lg shadow-md w-80 text-center">
+      <div class="logo-container">
+        <!-- Logo de votre société -->
+        <img src="https://via.placeholder.com/150x60?text=Personnel" alt="Logo Personnel" class="logo">
+      </div>
       <h1 class="text-2xl font-bold mb-6 text-blue-600">Contrôles OP</h1>
       <form id="loginForm" class="space-y-4">
         <input id="email" type="text" placeholder="Identifiant" class="w-full p-2 border rounded" required>
         <input id="password" type="password" placeholder="Mot de passe" class="w-full p-2 border rounded" required>
-        <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded">Se connecter</button>
+        <button type="submit" class="w-full bg-blue-600 text-white p-2 rounded hover:bg-blue-700 transition">Se connecter</button>
       </form>
-      <p id="loginError" class="text-red-500 mt-2 hidden">Identifiant ou mot de passe incorrect</p>
+      <p id="loginError" class="text-red-500 mt-2 hidden"></p>
     </div>
   </div>
 
@@ -91,8 +104,8 @@
       <div class="flex justify-between items-center">
         <h1 class="text-xl font-bold">📋 Contrôles - <span id="currentDate"></span></h1>
         <div>
-          <button id="debugBtn" class="bg-gray-200 text-gray-800 px-3 py-1 rounded text-sm mr-2">Debug</button>
-          <button id="logoutBtn" class="text-red-500">Déconnexion</button>
+          <button id="debugBtn" class="bg-gray-200 text-gray-800 px-3 py-1 rounded text-sm mr-2 hover:bg-gray-300 transition">Debug</button>
+          <button id="logoutBtn" class="text-red-500 hover:text-red-700 transition">Déconnexion</button>
         </div>
       </div>
     </header>
@@ -111,14 +124,14 @@
       <div class="p-6">
         <div class="flex justify-between items-center mb-4">
           <h2 class="text-xl font-bold">Contrôle pour <span id="modalEmployeNom"></span></h2>
-          <button id="closeModalBtn" class="text-gray-500 text-2xl">&times;</button>
+          <button id="closeModalBtn" class="text-gray-500 text-2xl hover:text-gray-700 transition">&times;</button>
         </div>
         <div id="modalDebugInfo" class="debug-info hidden"></div>
         <div id="errorMessage" class="error-message hidden"></div>
         <div id="produitsList" class="space-y-4 mb-6 modal-content"></div>
         <div class="flex space-x-2">
-          <button id="validerSansConfirmationBtn" class="flex-1 bg-green-600 text-white py-2 rounded">✅ Valider sans confirmation</button>
-          <button id="validerAvecConfirmationBtn" class="flex-1 bg-blue-600 text-white py-2 rounded">🔄 Valider avec confirmation</button>
+          <button id="validerSansConfirmationBtn" class="flex-1 bg-green-600 text-white py-2 rounded hover:bg-green-700 transition">✅ Valider sans confirmation</button>
+          <button id="validerAvecConfirmationBtn" class="flex-1 bg-blue-600 text-white py-2 rounded hover:bg-blue-700 transition">🔄 Valider avec confirmation</button>
         </div>
       </div>
     </div>
@@ -129,14 +142,14 @@
     <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
       <div class="flex justify-between items-center mb-4">
         <h2 class="text-xl font-bold">Informations de débogage</h2>
-        <button id="closeDebugModalBtn" class="text-gray-500 text-2xl">&times;</button>
+        <button id="closeDebugModalBtn" class="text-gray-500 text-2xl hover:text-gray-700 transition">&times;</button>
       </div>
       <div id="debugContent" class="space-y-4"></div>
     </div>
   </div>
 
   <script>
-    // Configuration
+    // Configuration - À adapter avec votre URL de déploiement réelle
     const CONFIG = {
       deployedURL: 'https://script.google.com/macros/s/AKfycbxWEfPlq6KBLE5hwk86e3O6xoaG3m1J8bIV9eu9IlS0AZOqYW2wpTBKJ84TBbH-DORPPw/exec',
       managers: [
@@ -150,7 +163,6 @@
     let allUsers = [];
     let currentEmploye = null;
     let produits = [];
-    let debugInfo = {};
 
     // Fonctions utilitaires
     function showLoading(show) {
@@ -164,7 +176,8 @@
     }
 
     function hideError(elementId) {
-      document.getElementById(elementId).classList.add('hidden');
+      const errorElement = document.getElementById(elementId);
+      if (errorElement) errorElement.classList.add('hidden');
     }
 
     function formatDate(date) {
@@ -173,11 +186,13 @@
 
     function showDebugInfo(info, elementId = 'debugInfo') {
       const debugElement = document.getElementById(elementId);
-      debugElement.innerHTML = `<pre>${JSON.stringify(info, null, 2)}</pre>`;
-      debugElement.classList.remove('hidden');
+      if (debugElement) {
+        debugElement.innerHTML = `<pre>${JSON.stringify(info, null, 2)}</pre>`;
+        debugElement.classList.remove('hidden');
+      }
     }
 
-    // Charger les produits depuis le Google Sheet avec débogage
+    // Charger les produits depuis le Google Sheet
     async function loadProduits(idEmploye) {
       showLoading(true);
       hideError('errorMessage');
@@ -185,57 +200,42 @@
       try {
         console.log(`[DEBUG] Chargement des produits pour l'employé ID: ${idEmploye}`);
 
-        // 1. Appel normal pour obtenir les produits
         const response = await fetch(`${CONFIG.deployedURL}?action=getProduits&idEmploye=${idEmploye}`);
+        if (!response.ok) throw new Error(`Erreur réseau: ${response.status}`);
+
         const data = await response.json();
         console.log('[DEBUG] Réponse complète:', data);
 
-        // 2. Vérification de la réponse
         if (data.status === 'error') {
           console.error('[DEBUG] Erreur serveur:', data.message);
           showError('errorMessage', `Erreur: ${data.message}`);
-
-          if (data.availableSheets) {
-            console.log('[DEBUG] Onglets disponibles:', data.availableSheets);
-            showDebugInfo({
-              error: data.message,
-              availableSheets: data.availableSheets,
-              lookedFor: data.lookedFor
-            }, 'modalDebugInfo');
-          }
-
-          if (data.headers) {
-            console.log('[DEBUG] En-têtes disponibles:', data.headers);
-          }
-
           return [];
         }
 
-        if (!data.products || !Array.isArray(data.products)) {
-          console.error('[DEBUG] Format de réponse inattendu. Attendu: Array, Reçu:', typeof data.products, data.products);
-          showError('errorMessage', 'Format de réponse inattendu du serveur');
+        if (!Array.isArray(data)) {
+          console.error('[DEBUG] Format de réponse inattendu:', data);
+          showError('errorMessage', 'Format de réponse inattendu');
           return [];
         }
 
-        console.log(`[DEBUG] ${data.products.length} produits trouvés`);
-        return data.products;
+        console.log(`[DEBUG] ${data.length} produits trouvés`);
+        return data;
 
       } catch (error) {
-        console.error('[DEBUG] Erreur réseau:', error);
-        showError('errorMessage', `Erreur réseau: ${error.message}`);
+        console.error('[DEBUG] Erreur:', error);
+        showError('errorMessage', `Erreur: ${error.message}`);
         return [];
       } finally {
         showLoading(false);
       }
     }
 
-    // Ouvrir la modale de contrôle avec débogage amélioré
+    // Ouvrir la modale de contrôle
     async function openControleModal(employe) {
       currentEmploye = employe;
       document.getElementById('modalEmployeNom').textContent = `${employe.prenom} ${employe.nom}`;
       document.getElementById('controleModal').classList.remove('hidden');
       hideError('errorMessage');
-      document.getElementById('modalDebugInfo').classList.add('hidden');
 
       console.log(`[DEBUG] Ouverture modale pour employe ID: ${employe.ID_Employé}`);
 
@@ -244,24 +244,20 @@
       produitsList.innerHTML = '';
 
       if (!produits || produits.length === 0) {
-        console.log('[DEBUG] Aucun produit trouvé pour cet employé');
+        console.log('[DEBUG] Aucun produit trouvé');
         produitsList.innerHTML = `
           <div class="p-4 text-center text-gray-500">
             <p>Aucun produit trouvé pour cet employé</p>
-            <p class="text-sm mt-2">ID Employé: ${employe.ID_Employé}</p>
-            <p class="text-sm">Nom: ${employe.prenom} ${employe.nom}</p>
+            <p class="text-sm mt-2">ID: ${employe.ID_Employé}</p>
           </div>
         `;
         return;
       }
 
-      console.log('[DEBUG] Produits à afficher:', produits);
-
       produits.forEach((produit, index) => {
         const produitElement = document.createElement('div');
         produitElement.className = 'flex items-center justify-between p-3 bg-gray-50 rounded';
 
-        // Vérification complète des propriétés avec valeurs par défaut
         const code = produit.Code_Produit || 'Code manquant';
         const designation = produit.Désignation || 'Désignation manquante';
         const qte = produit.Qté_Prévue !== undefined ? produit.Qté_Prévue : 'Qté non définie';
@@ -279,7 +275,7 @@
         produitsList.appendChild(produitElement);
       });
 
-      // Ajouter les écouteurs d'événements pour les boutons +/- après avoir chargé les produits
+      // Ajouter les écouteurs d'événements
       document.querySelectorAll('.minus-btn').forEach(btn => {
         btn.addEventListener('click', () => updateQte(btn.dataset.index, -1));
       });
@@ -307,7 +303,6 @@
 
       const produitsElements = document.querySelectorAll('.qte-display');
       let hasQte = false;
-      let allUpdatesSuccessful = true;
 
       for (let i = 0; i < produits.length; i++) {
         const qteControlee = parseInt(produitsElements[i].textContent);
@@ -316,9 +311,7 @@
           try {
             const response = await fetch(CONFIG.deployedURL, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-              },
+              headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 ID_Employé: currentEmploye.ID_Employé,
                 Code_Produit: produits[i].Code_Produit,
@@ -326,16 +319,11 @@
               }),
             });
 
-            const result = await response.json();
-            if (result.status !== 'success') {
-              console.error('[DEBUG] Erreur lors de l'enregistrement du produit:', produits[i], result.message);
-              allUpdatesSuccessful = false;
-            } else {
-              console.log('[DEBUG] Enregistrement réussi pour:', produits[i].Code_Produit);
+            if (!response.ok) {
+              console.error('Erreur lors de l\'enregistrement');
             }
           } catch (error) {
-            console.error('[DEBUG] Erreur réseau lors de l'enregistrement:', error);
-            allUpdatesSuccessful = false;
+            console.error('Erreur réseau:', error);
           }
         }
       }
@@ -345,11 +333,7 @@
         return;
       }
 
-      const successMessage = allUpdatesSuccessful ?
-        `Contrôle ${avecConfirmation ? 'en attente de validation' : 'validé'} avec succès` :
-        `Contrôle ${avecConfirmation ? 'en attente de validation' : 'validé'}, mais certaines mises à jour ont échoué. Vérifiez les logs pour plus de détails.`;
-
-      alert(successMessage);
+      alert(`Contrôle ${avecConfirmation ? 'en attente de validation' : 'validé'} avec succès`);
       closeControleModal();
       loadEmployes();
     }
@@ -386,27 +370,26 @@
         );
 
         if (employes.length === 0) {
-          listElement.innerHTML = '<p class="text-gray-500">Aucun employé trouvé</p>';
+          listElement.innerHTML = '<p class="text-gray-500 p-4">Aucun employé trouvé</p>';
           return;
         }
 
         employes.forEach(emp => {
           const employeeItem = document.createElement('div');
           employeeItem.className = 'p-3 border rounded-lg bg-white flex justify-between items-center';
-          const statut = 'new'; // Simplifié pour l'exemple
           employeeItem.innerHTML = `
             <div>
-              <span class="status-badge status-${statut}"></span>
+              <span class="status-badge status-new"></span>
               <span>${emp.prenom} ${emp.nom}</span>
             </div>
-            <button class="controle-btn bg-blue-500 text-white px-3 py-1 rounded text-sm" data-email="${emp.email}">
+            <button class="controle-btn bg-blue-500 text-white px-3 py-1 rounded text-sm hover:bg-blue-600 transition" data-email="${emp.email}">
               Contrôler
             </button>
           `;
           listElement.appendChild(employeeItem);
         });
 
-        // Ajouter les écouteurs d'événements aux boutons Contrôler
+        // Ajouter les écouteurs d'événements
         document.querySelectorAll('.controle-btn').forEach(btn => {
           btn.addEventListener('click', () => {
             const employeEmail = btn.dataset.email;
@@ -416,8 +399,8 @@
         });
 
       } catch (error) {
-        console.error('[DEBUG] Erreur lors du chargement des employés:', error);
-        listElement.innerHTML = '<p class="text-red-500">Erreur lors du chargement des employés. Voir console pour détails.</p>';
+        console.error('Erreur lors du chargement des employés:', error);
+        listElement.innerHTML = '<p class="text-red-500 p-4">Erreur lors du chargement des employés</p>';
       } finally {
         showLoading(false);
       }
@@ -429,31 +412,30 @@
       try {
         const response = await fetch(`${CONFIG.deployedURL}?action=debug`);
         const data = await response.json();
-        console.log('[DEBUG] Informations complètes:', data);
 
         const debugContent = document.getElementById('debugContent');
         debugContent.innerHTML = '';
 
         if (data.status === 'error') {
-          debugContent.innerHTML = `<div class="error-message">${data.message}</div>`;
+          debugContent.innerHTML = `<div class="error-message p-4">${data.message}</div>`;
         } else {
           debugContent.innerHTML = `
-            <div class="mb-4">
-              <h3 class="font-bold mb-2">Configuration:</h3>
-              <pre>${JSON.stringify(data.config, null, 2)}</pre>
+            <div class="mb-6">
+              <h3 class="font-bold text-lg mb-2">Configuration:</h3>
+              <pre class="bg-gray-100 p-4 rounded">${JSON.stringify(data.config, null, 2)}</pre>
             </div>
 
-            <div class="mb-4">
-              <h3 class="font-bold mb-2">Onglets disponibles (${data.sheets.length}):</h3>
+            <div class="mb-6">
+              <h3 class="font-bold text-lg mb-2">Onglets disponibles (${data.sheets.length}):</h3>
               ${data.sheets.map(sheet => `
-                <div class="mb-4 p-4 border rounded-lg">
-                  <h4 class="font-semibold mb-2">${sheet.name}</h4>
+                <div class="mb-4 p-4 border rounded-lg bg-gray-50">
+                  <h4 class="font-semibold mb-2 text-blue-600">${sheet.name}</h4>
                   <div class="mb-2">
                     <strong>En-têtes:</strong> ${sheet.headers.join(', ')}
                   </div>
                   <div>
-                    <strong>Échantillon de données (2 lignes):</strong>
-                    <pre>${JSON.stringify(sheet.sampleData, null, 2)}</pre>
+                    <strong>Échantillon de données:</strong>
+                    <pre class="bg-gray-100 p-2 rounded text-sm">${JSON.stringify(sheet.sampleData, null, 2)}</pre>
                   </div>
                 </div>
               `).join('')}
@@ -463,12 +445,13 @@
 
         document.getElementById('debugModal').classList.remove('hidden');
       } catch (error) {
-        console.error('[DEBUG] Erreur lors de la récupération des infos de debug:', error);
+        console.error('Erreur lors de la récupération des infos de debug:', error);
         document.getElementById('debugContent').innerHTML = `
-          <div class="error-message">
-            Erreur lors de la récupération des informations de debug: ${error.message}
+          <div class="error-message p-4">
+            Erreur lors de la récupération des informations: ${error.message}
           </div>
         `;
+        document.getElementById('debugModal').classList.remove('hidden');
       } finally {
         showLoading(false);
       }
@@ -484,15 +467,20 @@
       event.preventDefault();
       showLoading(true);
       hideError('loginError');
+
       const email = document.getElementById('email').value.trim().toLowerCase();
       const password = document.getElementById('password').value;
 
       try {
+        console.log(`[DEBUG] Tentative de connexion avec: ${email}`);
+
         const response = await fetch(`${CONFIG.deployedURL}?action=getEmployes`);
-        if (!response.ok) throw new Error('Erreur réseau');
+        if (!response.ok) throw new Error(`Erreur réseau: ${response.status}`);
 
         const employesData = await response.json();
         if (!Array.isArray(employesData)) throw new Error('Données invalides');
+
+        console.log('[DEBUG] Employés reçus:', employesData);
 
         allUsers = [
           ...CONFIG.managers,
@@ -508,6 +496,8 @@
           }))
         ];
 
+        console.log('[DEBUG] Tous les utilisateurs:', allUsers);
+
         const user = allUsers.find(u => u.email === email && u.password === password);
         if (!user) {
           showError('loginError', 'Identifiant ou mot de passe incorrect');
@@ -515,6 +505,8 @@
         }
 
         currentUser = user;
+        console.log('[DEBUG] Utilisateur connecté:', currentUser);
+
         document.getElementById('loginScreen').classList.add('hidden');
         document.getElementById('managerApp').classList.remove('hidden');
         document.getElementById('currentDate').textContent = formatDate(new Date());
@@ -533,6 +525,7 @@
       document.getElementById('managerApp').classList.add('hidden');
       document.getElementById('loginScreen').classList.remove('hidden');
       currentUser = null;
+      allUsers = [];
     }
 
     // Initialisation
