@@ -85,7 +85,6 @@
   <div id="loginScreen" class="flex flex-col items-center justify-center h-screen bg-gray-50">
     <div class="bg-white p-8 rounded-lg shadow-md w-80 text-center">
       <div class="logo-container">
-        <!-- Logo de votre société -->
         <img src="https://via.placeholder.com/150x60?text=Personnel" alt="Logo Personnel" class="logo">
       </div>
       <h1 class="text-2xl font-bold mb-6 text-blue-600">Contrôles OP</h1>
@@ -199,9 +198,11 @@
 
       try {
         console.log(`[DEBUG] Chargement des produits pour l'employé ID: ${idEmploye}`);
-
         const response = await fetch(`${CONFIG.deployedURL}?action=getProduits&idEmploye=${idEmploye}`);
-        if (!response.ok) throw new Error(`Erreur réseau: ${response.status}`);
+
+        if (!response.ok) {
+          throw new Error(`Erreur réseau: ${response.status}`);
+        }
 
         const data = await response.json();
         console.log('[DEBUG] Réponse complète:', data);
@@ -212,14 +213,14 @@
           return [];
         }
 
-        if (!Array.isArray(data)) {
+        if (!data.products || !Array.isArray(data.products)) {
           console.error('[DEBUG] Format de réponse inattendu:', data);
           showError('errorMessage', 'Format de réponse inattendu');
           return [];
         }
 
-        console.log(`[DEBUG] ${data.length} produits trouvés`);
-        return data;
+        console.log(`[DEBUG] ${data.products.length} produits trouvés`);
+        return data.products;
 
       } catch (error) {
         console.error('[DEBUG] Erreur:', error);
@@ -238,7 +239,6 @@
       hideError('errorMessage');
 
       console.log(`[DEBUG] Ouverture modale pour employe ID: ${employe.ID_Employé}`);
-
       produits = await loadProduits(employe.ID_Employé);
       const produitsList = document.getElementById('produitsList');
       produitsList.innerHTML = '';
@@ -257,7 +257,6 @@
       produits.forEach((produit, index) => {
         const produitElement = document.createElement('div');
         produitElement.className = 'flex items-center justify-between p-3 bg-gray-50 rounded';
-
         const code = produit.Code_Produit || 'Code manquant';
         const designation = produit.Désignation || 'Désignation manquante';
         const qte = produit.Qté_Prévue !== undefined ? produit.Qté_Prévue : 'Qté non définie';
@@ -279,6 +278,7 @@
       document.querySelectorAll('.minus-btn').forEach(btn => {
         btn.addEventListener('click', () => updateQte(btn.dataset.index, -1));
       });
+
       document.querySelectorAll('.plus-btn').forEach(btn => {
         btn.addEventListener('click', () => updateQte(btn.dataset.index, 1));
       });
@@ -313,6 +313,7 @@
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
+                action: 'saveControle',
                 ID_Employé: currentEmploye.ID_Employé,
                 Code_Produit: produits[i].Code_Produit,
                 Qté_Contrôlée: qteControlee,
@@ -411,39 +412,62 @@
       showLoading(true);
       try {
         const response = await fetch(`${CONFIG.deployedURL}?action=debug`);
-        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(`Erreur réseau: ${response.status}`);
+        }
 
+        const data = await response.json();
         const debugContent = document.getElementById('debugContent');
         debugContent.innerHTML = '';
 
         if (data.status === 'error') {
-          debugContent.innerHTML = `<div class="error-message p-4">${data.message}</div>`;
-        } else {
-          debugContent.innerHTML = `
-            <div class="mb-6">
-              <h3 class="font-bold text-lg mb-2">Configuration:</h3>
-              <pre class="bg-gray-100 p-4 rounded">${JSON.stringify(data.config, null, 2)}</pre>
-            </div>
-
-            <div class="mb-6">
-              <h3 class="font-bold text-lg mb-2">Onglets disponibles (${data.sheets.length}):</h3>
-              ${data.sheets.map(sheet => `
-                <div class="mb-4 p-4 border rounded-lg bg-gray-50">
-                  <h4 class="font-semibold mb-2 text-blue-600">${sheet.name}</h4>
-                  <div class="mb-2">
-                    <strong>En-têtes:</strong> ${sheet.headers.join(', ')}
-                  </div>
-                  <div>
-                    <strong>Échantillon de données:</strong>
-                    <pre class="bg-gray-100 p-2 rounded text-sm">${JSON.stringify(sheet.sampleData, null, 2)}</pre>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          `;
+          debugContent.innerHTML = `<div class="error-message p-4">${data.message || 'Erreur inconnue'}</div>`;
+          document.getElementById('debugModal').classList.remove('hidden');
+          return;
         }
 
+        // Vérifiez que `data.sheets` est un tableau
+        if (!data.sheets || !Array.isArray(data.sheets)) {
+          debugContent.innerHTML = `<div class="error-message p-4">Format de réponse inattendu: ${JSON.stringify(data)}</div>`;
+          document.getElementById('debugModal').classList.remove('hidden');
+          return;
+        }
+
+        // Construisez le contenu de manière sécurisée
+        let sheetsHTML = '';
+        if (data.sheets.length > 0) {
+          sheetsHTML = data.sheets.map(sheet => {
+            const headers = Array.isArray(sheet.headers) ? sheet.headers.join(', ') : 'Aucun en-tête';
+            const sampleData = sheet.sampleData ? JSON.stringify(sheet.sampleData, null, 2) : 'Aucune donnée';
+            return `
+              <div class="mb-4 p-4 border rounded-lg bg-gray-50">
+                <h4 class="font-semibold mb-2 text-blue-600">${sheet.name || 'Nom manquant'}</h4>
+                <div class="mb-2">
+                  <strong>En-têtes:</strong> ${headers}
+                </div>
+                <div>
+                  <strong>Échantillon de données:</strong>
+                  <pre class="bg-gray-100 p-2 rounded text-sm">${sampleData}</pre>
+                </div>
+              </div>
+            `;
+          }).join('');
+        } else {
+          sheetsHTML = '<p>Aucun onglet disponible</p>';
+        }
+
+        debugContent.innerHTML = `
+          <div class="mb-6">
+            <h3 class="font-bold text-lg mb-2">Configuration:</h3>
+            <pre class="bg-gray-100 p-4 rounded">${data.config ? JSON.stringify(data.config, null, 2) : 'Aucune configuration'}</pre>
+          </div>
+          <div class="mb-6">
+            <h3 class="font-bold text-lg mb-2">Onglets disponibles (${data.sheets.length})</h3>
+            ${sheetsHTML}
+          </div>
+        `;
         document.getElementById('debugModal').classList.remove('hidden');
+
       } catch (error) {
         console.error('Erreur lors de la récupération des infos de debug:', error);
         document.getElementById('debugContent').innerHTML = `
@@ -473,7 +497,6 @@
 
       try {
         console.log(`[DEBUG] Tentative de connexion avec: ${email}`);
-
         const response = await fetch(`${CONFIG.deployedURL}?action=getEmployes`);
         if (!response.ok) throw new Error(`Erreur réseau: ${response.status}`);
 
@@ -481,7 +504,6 @@
         if (!Array.isArray(employesData)) throw new Error('Données invalides');
 
         console.log('[DEBUG] Employés reçus:', employesData);
-
         allUsers = [
           ...CONFIG.managers,
           ...employesData.map(emp => ({
@@ -497,8 +519,8 @@
         ];
 
         console.log('[DEBUG] Tous les utilisateurs:', allUsers);
-
         const user = allUsers.find(u => u.email === email && u.password === password);
+
         if (!user) {
           showError('loginError', 'Identifiant ou mot de passe incorrect');
           return;
@@ -506,7 +528,6 @@
 
         currentUser = user;
         console.log('[DEBUG] Utilisateur connecté:', currentUser);
-
         document.getElementById('loginScreen').classList.add('hidden');
         document.getElementById('managerApp').classList.remove('hidden');
         document.getElementById('currentDate').textContent = formatDate(new Date());
